@@ -20,7 +20,7 @@ def load_built_rasters_factory(year: int) -> dg.OpDefinition:
         out={"data": dg.Out(), "transform": dg.Out()},
     )
     def _op(path_resource: PathResource, bounds: list) -> tuple[np.ndarray, Affine]:
-        fpath = Path(path_resource.ghsl_path) / f"BUILT_100" / f"{year}.tif"
+        fpath = Path(path_resource.ghsl_path) / "BUILT_100" / f"{year}.tif"
         with rio.open(fpath, nodata=65535) as ds:
             data, transform = rio_mask.mask(ds, bounds, crop=True, nodata=0)
 
