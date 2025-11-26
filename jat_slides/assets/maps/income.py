@@ -33,7 +33,7 @@ def plot_income(
     labels: dict[str, bool],
     legend_pos: str,
 ) -> Figure:
-    state = context.partition_key.split(".")[0]
+    state = int(context.partition_key.split(".")[0])
 
     cmap = mpl.colormaps["RdBu"]
 
@@ -52,6 +52,7 @@ def plot_income(
         mun_poly_kwargs={"linewidth": 0.3, "alpha": 0.2},
         state_text_kwargs={"fontsize": 7, "color": "#006400", "alpha": 0.9},
         state=state,
+        population_grids_path=path_resource.pg_path,
     )
 
     if len(df) == 0:

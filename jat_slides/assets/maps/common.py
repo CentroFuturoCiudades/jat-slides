@@ -202,6 +202,7 @@ def generate_figure(
     mun_poly_kwargs: dict | None = None,
     mun_text_kwargs: dict | None = None,
     state: int | None = None,
+    population_grids_path: os.PathLike | str | None = None,
 ) -> tuple[Figure, Axes]:
     fig, ax = plt.subplots(figsize=(8, 4.5))
     ax.axis("off")
@@ -214,15 +215,23 @@ def generate_figure(
     fig.subplots_adjust(right=1)
     fig.subplots_adjust(left=0)
 
-    cx.add_basemap(ax, source=cx.providers.CartoDB.PositronNoLabels, crs="EPSG:4326")
+    cx.add_basemap(ax, source=cx.providers.CartoDB.PositronNoLabels, crs="EPSG:4326")  # type: ignore
 
     if add_mun_bounds:
+        if population_grids_path is None:
+            err = "population_grids_path must be provided if add_mun_bounds is True"
+            raise ValueError(err)
+
+        population_grids_path = Path(population_grids_path)
         add_polygon_bounds(
+            Path(population_grids_path / "final" / "framework" / "mun" / "2020.gpkg"),
             Path(
-                "C:/Users/lain/OneDrive - Instituto Tecnologico y de Estudios Superiores de Monterrey/population_grids_data/final/framework/mun/2020.gpkg"
-            ),
-            Path(
-                f"C:/Users/lain/OneDrive - Instituto Tecnologico y de Estudios Superiores de Monterrey/population_grids_data/initial/census/INEGI/2020/conjunto_de_datos_ageb_urbana_{str(state).zfill(2)}_cpv2020.csv"
+                population_grids_path
+                / "initial"
+                / "census"
+                / "INEGI"
+                / "2020"
+                / f"conjunto_de_datos_ageb_urbana_{str(state).zfill(2)}_cpv2020.csv"
             ),
             xmin=xmin,
             ymin=ymin,
@@ -236,12 +245,21 @@ def generate_figure(
         )
 
     if add_state_bounds:
+        if population_grids_path is None:
+            err = "population_grids_path must be provided if add_state_bounds is True"
+            raise ValueError(err)
+
+        population_grids_path = Path(population_grids_path)
+
         add_polygon_bounds(
+            Path(population_grids_path / "final" / "framework" / "state" / "2020.gpkg"),
             Path(
-                "C:/Users/lain/OneDrive - Instituto Tecnologico y de Estudios Superiores de Monterrey/population_grids_data/final/framework/state/2020.gpkg"
-            ),
-            Path(
-                f"C:/Users/lain/OneDrive - Instituto Tecnologico y de Estudios Superiores de Monterrey/population_grids_data/initial/census/INEGI/2020/conjunto_de_datos_ageb_urbana_{str(state).zfill(2)}_cpv2020.csv"
+                population_grids_path
+                / "initial"
+                / "census"
+                / "INEGI"
+                / "2020"
+                / f"conjunto_de_datos_ageb_urbana_{str(state).zfill(2)}_cpv2020.csv"
             ),
             xmin=xmin,
             ymin=ymin,

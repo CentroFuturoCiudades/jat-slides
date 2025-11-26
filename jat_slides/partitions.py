@@ -80,7 +80,13 @@ zone_partitions = StaticPartitionsDefinition(
 )
 
 
-mun_2020_path = Path(os.getenv("POPULATION_GRIDS_PATH")) / "framework/mun/2020.gpkg"
+mun_2020_path = (
+    Path(os.environ["POPULATION_GRIDS_PATH"])
+    / "final"
+    / "framework"
+    / "mun"
+    / "2020.gpkg"
+)
 df_mun = gpd.read_file(mun_2020_path)
 mun_list = df_mun["CVEGEO"].sort_values().astype(str).to_numpy().tolist()
 mun_partitions = StaticPartitionsDefinition(mun_list)

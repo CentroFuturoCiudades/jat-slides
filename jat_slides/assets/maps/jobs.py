@@ -58,7 +58,7 @@ def plot_jobs(
     lw: float,
     labels: dict[str, bool],
 ) -> Figure:
-    state = context.partition_key.split(".")[0]
+    state = int(context.partition_key.split(".")[0])
 
     cmap = mpl.colormaps["YlGn"]
 
@@ -80,6 +80,7 @@ def plot_jobs(
         mun_poly_kwargs={"linewidth": 0.3, "alpha": 0.2},
         state_text_kwargs={"fontsize": 7, "color": "#006400", "alpha": 0.9},
         state=state,
+        population_grids_path=path_resource.pg_path,
     )
     df.plot(
         column="category",

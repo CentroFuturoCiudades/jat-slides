@@ -32,7 +32,7 @@ def plot_dataframe(
     labels: dict[str, bool],
     legend_pos: str,
 ) -> Figure:
-    state = context.partition_key.split(".")[0]
+    state = int(context.partition_key.split(".")[0])
 
     fig, ax = generate_figure(
         *bounds,
@@ -49,6 +49,7 @@ def plot_dataframe(
         mun_poly_kwargs={"linewidth": 0.3, "alpha": 0.2},
         state_text_kwargs={"fontsize": 7, "color": "#006400", "alpha": 0.9},
         state=state,
+        population_grids_path=path_resource.pg_path,
     )
 
     cmap_bounds = get_cmap_bounds(df["difference"], 3)
