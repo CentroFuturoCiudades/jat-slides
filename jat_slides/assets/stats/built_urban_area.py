@@ -25,13 +25,13 @@ def calculate_built_urban_area(
 
 
 def built_urban_area_factory(suffix: str):
-    if suffix == "":
+    if suffix == "zone":
         prefix = "agebs"
         partitions_def = zone_partitions
-    elif suffix == "_mun":
+    elif suffix == "mun":
         prefix = "muns"
         partitions_def = mun_partitions
-    elif suffix == "_trimmed":
+    elif suffix == "trimmed":
         prefix = "agebs_trimmed"
         partitions_def = zone_partitions
     else:
@@ -39,7 +39,7 @@ def built_urban_area_factory(suffix: str):
 
     @asset(
         name="built_urban_area",
-        key_prefix=f"stats{suffix}",
+        key_prefix=f"stats_{suffix}",
         ins={
             "agebs_1990": AssetIn(key=[prefix, "1990"]),
             "agebs_2000": AssetIn(key=[prefix, "2000"]),
@@ -47,7 +47,7 @@ def built_urban_area_factory(suffix: str):
             "agebs_2020": AssetIn(key=[prefix, "2020"]),
         },
         partitions_def=partitions_def,
-        group_name=f"stats{suffix}",
+        group_name=f"stats_{suffix}",
         io_manager_key="csv_manager",
     )
     def _asset(
@@ -66,4 +66,4 @@ def built_urban_area_factory(suffix: str):
     return _asset
 
 
-dassets = [built_urban_area_factory(suffix) for suffix in ("", "_mun", "_trimmed")]
+dassets = [built_urban_area_factory(suffix) for suffix in ("zone", "mun", "trimmed")]

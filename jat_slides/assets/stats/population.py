@@ -17,20 +17,21 @@ def calculate_lost_pop(
     for year, agebs in zip(
         (1990, 2000, 2010, 2020),
         (agebs_1990, agebs_2000, agebs_2010, agebs_2020),
+        strict=True,
     ):
         pop = agebs["POBTOT"].sum()
-        pops.append(dict(year=year, pop=pop))
+        pops.append({"year": year, "pop": pop})
     return pd.DataFrame(pops)
 
 
 def population_factory(suffix: str):
-    if suffix == "":
+    if suffix == "zone":
         prefix = "agebs"
         partitions_def = zone_partitions
-    elif suffix == "_mun":
+    elif suffix == "mun":
         prefix = "muns"
         partitions_def = mun_partitions
-    elif suffix == "_trimmed":
+    elif suffix == "trimmed":
         prefix = "agebs_trimmed"
         partitions_def = zone_partitions
     else:
@@ -44,10 +45,10 @@ def population_factory(suffix: str):
             "agebs_2020": AssetIn(key=[prefix, "2020"]),
         },
         name="population",
-        key_prefix=f"stats{suffix}",
+        key_prefix=f"stats_{suffix}",
         partitions_def=partitions_def,
         io_manager_key="csv_manager",
-        group_name=f"stats{suffix}",
+        group_name=f"stats_{suffix}",
     )
     def _asset(
         agebs_1990: gpd.GeoDataFrame,
@@ -60,4 +61,4 @@ def population_factory(suffix: str):
     return _asset
 
 
-dassets = [population_factory(suffix) for suffix in ["", "_mun", "_trimmed"]]
+dassets = [population_factory(suffix) for suffix in ["zone", "mun", "trimmed"]]

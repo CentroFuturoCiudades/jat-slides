@@ -9,7 +9,7 @@ from jat_slides.resources import PathResource
 
 
 @dg.asset(
-    name="base",
+    name="zone",
     key_prefix="cells",
     partitions_def=zone_partitions,
     io_manager_key="gpkg_manager",
@@ -31,7 +31,7 @@ def cells_base(
     key_prefix="cells",
     ins={
         "agebs": dg.AssetIn(["agebs_trimmed", "2020"]),
-        "cells": dg.AssetIn(["cells", "base"]),
+        "cells": dg.AssetIn(["cells", "zone"]),
     },
     partitions_def=zone_partitions,
     io_manager_key="gpkg_manager",
@@ -65,12 +65,10 @@ def cells_mun(
     else:
         ent = context.partition_key[:2]
 
-    diff_path = Path(path_resource.pg_path) / "differences/2000_2020"
-    df = []
-    for path in diff_path.glob(f"{ent}.*.gpkg"):
-        temp = gpd.read_file(path)
-        df.append(temp)
-    df = pd.concat(df)
+    diff_path = Path(path_resource.pg_path) / "final" / "differences" / "2000_2020"
+    df = gpd.GeoDataFrame(
+        pd.concat([gpd.read_file(path) for path in diff_path.glob(f"{ent}.*.gpkg")]),
+    )
 
     joined = df.sjoin(agebs.to_crs("EPSG:6372"), how="inner", predicate="intersects")[
         "codigo"

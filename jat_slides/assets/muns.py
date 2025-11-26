@@ -26,20 +26,20 @@ def muns_factory(year: int) -> dg.AssetsDefinition:
             ent = context.partition_key[:2]
 
         agebs_dir_path = (
-            Path(path_resource.pg_path) / "zone_agebs" / "shaped" / str(year)
+            Path(path_resource.pg_path) / "final" / "zone_agebs" / "shaped" / str(year)
         )
 
-        df = [
-            gpd.read_file(path).to_crs("ESRI:54009")
-            for path in agebs_dir_path.glob(f"{ent}.*.gpkg")
-        ]
-        df = pd.concat(df)
-        df["geometry"] = df["geometry"].make_valid()
+        df = pd.concat(
+            [
+                gpd.read_file(path).to_crs("ESRI:54009")
+                for path in agebs_dir_path.glob(f"{ent}.*.gpkg")
+            ],
+        ).assign(geometry=lambda df: df["geometry"].make_valid())
 
         code_prefix = context.partition_key.rjust(5, "0")
 
         return gpd.GeoDataFrame(
-            df.loc[df["CVEGEO"].str.startswith(code_prefix), ["POBTOT", "geometry"]]
+            df.loc[df["CVEGEO"].str.startswith(code_prefix), ["POBTOT", "geometry"]],
         )
 
     return _asset

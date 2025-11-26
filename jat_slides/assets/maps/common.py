@@ -138,11 +138,11 @@ def add_polygon_bounds(
 
         if "ENTIDAD" in usecols:
             df_name = df_name.assign(
-                CVEGEO=lambda df: df["CVEGEO"] + df["ENTIDAD"].astype(str).str.zfill(2)
+                CVEGEO=lambda df: df["CVEGEO"] + df["ENTIDAD"].astype(str).str.zfill(2),
             )
         if "MUN" in usecols:
             df_name = df_name.assign(
-                CVEGEO=lambda df: df["CVEGEO"] + df["MUN"].astype(str).str.zfill(3)
+                CVEGEO=lambda df: df["CVEGEO"] + df["MUN"].astype(str).str.zfill(3),
             )
 
         df_name = (
@@ -158,14 +158,14 @@ def add_polygon_bounds(
             .assign(
                 geometry=lambda df: df["geometry"].intersection(bbox),
                 coords=lambda df: df["geometry"].apply(
-                    lambda x: x.representative_point().coords[:]
+                    lambda x: x.representative_point().coords[:],
                 ),
             )
         )
         df_mun_trimmed["coords"] = [c[0] for c in df_mun_trimmed["coords"]]
 
         df_mun_trimmed["name"] = df_mun_trimmed["name"].replace(
-            {"México": "Estado de México"}
+            {"México": "Estado de México"},
         )
 
         for _, row in df_mun_trimmed.iterrows():
@@ -231,7 +231,7 @@ def generate_figure(
                 / "census"
                 / "INEGI"
                 / "2020"
-                / f"conjunto_de_datos_ageb_urbana_{str(state).zfill(2)}_cpv2020.csv"
+                / f"conjunto_de_datos_ageb_urbana_{str(state).zfill(2)}_cpv2020.csv",
             ),
             xmin=xmin,
             ymin=ymin,
@@ -259,7 +259,7 @@ def generate_figure(
                 / "census"
                 / "INEGI"
                 / "2020"
-                / f"conjunto_de_datos_ageb_urbana_{str(state).zfill(2)}_cpv2020.csv"
+                / f"conjunto_de_datos_ageb_urbana_{str(state).zfill(2)}_cpv2020.csv",
             ),
             xmin=xmin,
             ymin=ymin,
@@ -277,7 +277,8 @@ def generate_figure(
 
 def get_bounds_op_factory(level: str) -> dg.OpDefinition:
     @dg.op(
-        name=f"get_bounds_{level}", required_resource_keys={f"{level}_config_resource"}
+        name=f"get_bounds_{level}",
+        required_resource_keys={f"{level}_config_resource"},
     )
     def _op(
         context: dg.OpExecutionContext,
@@ -316,7 +317,8 @@ def get_legend_pos_op_factory(level: str) -> dg.OpDefinition:
 
 @dg.op
 def get_labels_zone(
-    context: dg.OpExecutionContext, zone_config_resource: ConfigResource
+    context: dg.OpExecutionContext,
+    zone_config_resource: ConfigResource,
 ) -> dict[str, bool]:
     if (
         zone_config_resource.add_labels is not None
@@ -332,10 +334,38 @@ def get_labels_zone(
     }
 
 
+@dg.op
+def get_labels_mun(
+    context: dg.OpExecutionContext,
+    mun_config_resource: ConfigResource,
+) -> dict[str, bool]:
+    if (
+        mun_config_resource.add_labels is not None
+        and context.partition_key in mun_config_resource.add_labels
+    ):
+        return {
+            "state": "state" in mun_config_resource.add_labels[context.partition_key],
+            "mun": "mun" in mun_config_resource.add_labels[context.partition_key],
+        }
+    return {
+        "state": False,
+        "mun": False,
+    }
+
+
 def update_categorical_legend(
-    ax: Axes, title: str, fmt: str, cmap: mcol.Colormap, legend_pos: str
+    ax: Axes,
+    title: str,
+    fmt: str,
+    cmap: mcol.Colormap,
+    legend_pos: str,
 ) -> None:
     leg = ax.get_legend()
+
+    if leg is None:
+        err = "No legend found in the provided Axes"
+        raise ValueError(err)
+
     leg.set_title(title)
     leg.set_alignment("left")
 

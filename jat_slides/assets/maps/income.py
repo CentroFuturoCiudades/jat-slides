@@ -11,8 +11,10 @@ from jat_slides.assets.maps.common import (
     get_bounds_base,
     get_bounds_mun,
     get_bounds_trimmed,
+    get_labels_mun,
     get_labels_zone,
     get_legend_pos_base,
+    get_legend_pos_mun,
     get_linewidth,
     intersect_geometries,
     update_categorical_legend,
@@ -88,10 +90,10 @@ def plot_income(
 
 @dg.graph_asset(
     name="income",
-    key_prefix="plot",
+    key_prefix="plot_zone",
     ins={"df": dg.AssetIn(key=["income", "base"])},
     partitions_def=zone_partitions,
-    group_name="plot",
+    group_name="plot_zone",
 )
 def income_plot(df: gpd.GeoDataFrame) -> Figure:
     lw = get_linewidth()
@@ -115,7 +117,9 @@ def income_plot_mun(agebs_mun: gpd.GeoDataFrame, state_df: gpd.GeoDataFrame) -> 
     df = intersect_geometries(state_df, agebs_mun)
     lw = get_linewidth()
     bounds = get_bounds_mun()
-    return plot_income(df, bounds, lw)
+    labels = get_labels_mun()
+    legend_pos = get_legend_pos_mun()
+    return plot_income(df, bounds, lw, labels, legend_pos)
 
 
 @dg.graph_asset(

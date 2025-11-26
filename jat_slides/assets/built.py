@@ -89,7 +89,7 @@ def built_graph(
 
 
 @dg.graph_asset(
-    name="built",
+    name="built_zone",
     ins={
         "agebs_1990": dg.AssetIn(key=["agebs", "1990"]),
         "agebs_2000": dg.AssetIn(key=["agebs", "2000"]),

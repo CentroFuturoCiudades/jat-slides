@@ -17,7 +17,8 @@ from jat_slides.resources import PathResource
     group_name="income",
 )
 def income(
-    context: dg.AssetExecutionContext, path_resource: PathResource
+    context: dg.AssetExecutionContext,
+    path_resource: PathResource,
 ) -> gpd.GeoDataFrame:
     segregation_path = Path(path_resource.segregation_path)
 

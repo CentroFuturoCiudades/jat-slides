@@ -77,17 +77,14 @@ def plot_dataframe(
 
 # pylint: disable=no-value-for-parameter
 def population_grid_plot_factory(suffix: str) -> dg.AssetsDefinition:
-    if suffix == "":
+    if suffix == "zone":
         op = get_bounds_base
-        prefix = "base"
         partitions_def = zone_partitions
-    elif suffix == "_mun":
+    elif suffix == "mun":
         op = get_bounds_mun
-        prefix = "mun"
         partitions_def = mun_partitions
-    elif suffix == "_trimmed":
+    elif suffix == "trimmed":
         op = get_bounds_trimmed
-        prefix = "trimmed"
         partitions_def = zone_partitions
     else:
         err = f"Invalid suffix: {suffix}"
@@ -95,10 +92,10 @@ def population_grid_plot_factory(suffix: str) -> dg.AssetsDefinition:
 
     @dg.graph_asset(
         name="population_grid",
-        key_prefix=f"plot{suffix}",
-        ins={"df": dg.AssetIn(key=["cells", prefix])},
+        key_prefix=f"plot_{suffix}",
+        ins={"df": dg.AssetIn(key=["cells", suffix])},
         partitions_def=partitions_def,
-        group_name=f"plot{suffix}",
+        group_name=f"plot_{suffix}",
     )
     def _asset(df: gpd.GeoDataFrame) -> Figure:
         bounds = op()
@@ -111,4 +108,6 @@ def population_grid_plot_factory(suffix: str) -> dg.AssetsDefinition:
     return _asset
 
 
-dassets = [population_grid_plot_factory(suffix) for suffix in ("", "_mun", "_trimmed")]
+dassets = [
+    population_grid_plot_factory(suffix) for suffix in ("zone", "mun", "trimmed")
+]

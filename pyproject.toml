@@ -1,41 +1,38 @@
-[tool.poetry]
+[project]
 name = "jat-slides"
 version = "0.1.0"
-description = ""
-authors = ["RodolfoFigueroa <4rodolfofigueroa2@gmail.com>"]
+description = "Add your description here"
 readme = "README.md"
-
-[tool.poetry.dependencies]
-python = ">=3.11,<3.13"
-ipykernel = "^6.29.5"
-python-pptx = "^1.0.2"
-geopandas = "^1.0.1"
-matplotlib = "^3.9.2"
-contextily = "^1.6.2"
-dagster = "^1.9.1"
-dagster-webserver = "^1.9.1"
-babel = "^2.16.0"
-toml = "^0.10.2"
-mapclassify = "^2.8.1"
-jenkspy = "^0.4.1"
-pandas-stubs = "^2.2.3.250527"
-
-[tool.poetry.group.dev.dependencies]
-pre-commit = "^4.0.1"
-basedpyright = "^1.29.1"
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
-
-[tool.dagster]
-module_name = "jat_slides.definitions"
-code_location_name = "jat_slides"
-
-[tool.basedpyright] 
-ignore = ["**/*.ipynb"]
-typeCheckingMode = "standard"
+requires-python = ">=3.12"
+dependencies = [
+    "dagster>=1.12.3",
+    "dagster-dg-cli>=1.12.3",
+    "dagster-webserver>=1.12.3",
+    "geopandas>=1.1.1",
+    "ipykernel<7",
+    "matplotlib>=3.10.7",
+    "numpy>=2.3.5",
+    "pandas>=2.3.3",
+    "pandas-stubs>=2.3.2.250926",
+    "rasterio>=1.4.3",
+    "seaborn>=0.13.2",
+    "shapely>=2.1.2",
+    "types-geopandas>=1.1.1.20250829",
+]
 
 [tool.ruff.lint]
 select = ["ALL"]
-ignore = ["D", "PTH123", "PD901", "COM812", "FA102", "PLR2004", "PLR0913"]
+ignore = ["D", "PLR2004"]
+
+[tool.basedpyright]
+typeCheckingMode = "standard"
+ignore = ["**/*.ipynb"]
+
+[tool.dg]
+directory_type = "project"
+
+[tool.dg.project]
+root_module = "jat_slides"
+registry_modules = [
+    "jat_slides.definitions",
+]

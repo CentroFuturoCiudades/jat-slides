@@ -8,9 +8,11 @@ defs = dg.Definitions.merge(
             list(dg.load_assets_from_modules([assets.agebs], group_name="agebs"))
             + list(dg.load_assets_from_modules([assets.muns], group_name="muns"))
             + list(
-                dg.load_assets_from_modules([assets.built, assets.cells, assets.income])
+                dg.load_assets_from_modules(
+                    [assets.built, assets.cells, assets.income],
+                ),
             )
-            + list(dg.load_assets_from_modules([assets.slides], group_name="slides"))
+            + list(dg.load_assets_from_modules([assets.slides]))
             + list(dg.load_assets_from_modules([assets.jobs], group_name="jobs"))
         ),
     ),

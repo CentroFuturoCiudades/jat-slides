@@ -15,8 +15,7 @@ from pptx.text.text import TextFrame
 from pptx.util import Cm, Pt
 
 import dagster as dg
-from dagster import AssetIn, asset
-from jat_slides.partitions import zone_partitions
+from jat_slides.partitions import zone_partitions, mun_partitions
 from jat_slides.resources import ConfigResource
 
 RGB_BLUE = RGBColor(0x00, 0x70, 0xC0)
@@ -326,58 +325,73 @@ def generate_single_slide(
     return pres
 
 
-@asset(
-    ins={
-        "lost_pop_after_2000": AssetIn(key=["stats", "lost_pop_after_2000"]),
-        "built_after_2000": AssetIn(key=["stats", "built_after_2000"]),
-        "pop_df": AssetIn(key=["stats", "population"]),
-        "total_jobs": AssetIn(key=["stats", "total_jobs"]),
-        "built_df": AssetIn(key=["stats", "built_area"]),
-        "built_urban_df": AssetIn(key=["stats", "built_urban_area"]),
-        "pg_figure_path": AssetIn(
-            key=["plot", "population_grid"],
-            input_manager_key="path_manager",
-        ),
-        "built_figure_path": AssetIn(
-            key=["plot", "built"],
-            input_manager_key="path_manager",
-        ),
-        "income_figure_path": AssetIn(
-            key=["plot", "income"],
-            input_manager_key="path_manager",
-        ),
-        "jobs_figure_path": AssetIn(
-            key=["plot", "jobs"],
-            input_manager_key="path_manager",
-        ),
-    },
-    partitions_def=zone_partitions,
-    io_manager_key="presentation_manager",
-)
-def slides(
-    context: dg.AssetExecutionContext,
-    zone_config_resource: ConfigResource,
-    lost_pop_after_2000: float,
-    built_after_2000: float,
-    total_jobs: float,
-    pop_df: pd.DataFrame,
-    built_df: pd.DataFrame,
-    built_urban_df: pd.DataFrame,
-    pg_figure_path: Path,
-    built_figure_path: Path,
-    income_figure_path: Path,
-    jobs_figure_path: Path,
-) -> PresentationType:
-    return generate_single_slide(
-        name=zone_config_resource.names[context.partition_key],
-        lost_pop_after_2000=lost_pop_after_2000,
-        built_after_2000=built_after_2000,
-        total_jobs=total_jobs,
-        pop_df=pop_df,
-        built_df=built_df,
-        built_urban_df=built_urban_df,
-        built_figure_path=built_figure_path,
-        pg_figure_path=pg_figure_path,
-        income_figure_path=income_figure_path,
-        jobs_figure_path=jobs_figure_path,
+def slides_factory(
+    level: str, *, partitions_def: dg.PartitionsDefinition
+) -> dg.AssetsDefinition:
+    @dg.asset(
+        name=f"slides_{level}",
+        ins={
+            "lost_pop_after_2000": dg.AssetIn(
+                key=[f"stats_{level}", "lost_pop_after_2000"]
+            ),
+            "built_after_2000": dg.AssetIn(key=[f"stats_{level}", "built_after_2000"]),
+            "pop_df": dg.AssetIn(key=[f"stats_{level}", "population"]),
+            "total_jobs": dg.AssetIn(key=[f"stats_{level}", "total_jobs"]),
+            "built_df": dg.AssetIn(key=[f"stats_{level}", "built_area"]),
+            "built_urban_df": dg.AssetIn(key=[f"stats_{level}", "built_urban_area"]),
+            "pg_figure_path": dg.AssetIn(
+                key=[f"plot_{level}", "population_grid"],
+                input_manager_key="path_manager",
+            ),
+            "built_figure_path": dg.AssetIn(
+                key=[f"plot_{level}", "built"],
+                input_manager_key="path_manager",
+            ),
+            "income_figure_path": dg.AssetIn(
+                key=[f"plot_{level}", "income"],
+                input_manager_key="path_manager",
+            ),
+            "jobs_figure_path": dg.AssetIn(
+                key=[f"plot_{level}", "jobs"],
+                input_manager_key="path_manager",
+            ),
+        },
+        partitions_def=partitions_def,
+        io_manager_key="presentation_manager",
+        group_name=f"slides_{level}",
+        required_resource_keys={f"{level}_config_resource"},
     )
+    def _asset(
+        context: dg.AssetExecutionContext,
+        lost_pop_after_2000: float,
+        built_after_2000: float,
+        total_jobs: float,
+        pop_df: pd.DataFrame,
+        built_df: pd.DataFrame,
+        built_urban_df: pd.DataFrame,
+        pg_figure_path: Path,
+        built_figure_path: Path,
+        income_figure_path: Path,
+        jobs_figure_path: Path,
+    ) -> PresentationType:
+        config_resource = getattr(context.resources, f"{level}_config_resource")
+
+        return generate_single_slide(
+            name=config_resource.names[context.partition_key],
+            lost_pop_after_2000=lost_pop_after_2000,
+            built_after_2000=built_after_2000,
+            total_jobs=total_jobs,
+            pop_df=pop_df,
+            built_df=built_df,
+            built_urban_df=built_urban_df,
+            built_figure_path=built_figure_path,
+            pg_figure_path=pg_figure_path,
+            income_figure_path=income_figure_path,
+            jobs_figure_path=jobs_figure_path,
+        )
+
+    return _asset
+
+
+slides_zone = slides_factory("zone", partitions_def=zone_partitions)
+slides_mun = slides_factory("mun", partitions_def=mun_partitions)

@@ -15,8 +15,10 @@ from jat_slides.assets.maps.common import (
     get_bounds_base,
     get_bounds_mun,
     get_bounds_trimmed,
+    get_labels_mun,
     get_labels_zone,
     get_legend_pos_base,
+    get_legend_pos_mun,
 )
 from jat_slides.partitions import mun_partitions, zone_partitions
 from jat_slides.resources import PathResource
@@ -87,35 +89,38 @@ def plot_raster(
     return fig
 
 
-@dg.graph_asset(
-    name="built",
-    key_prefix="plot",
-    ins={
-        "data_and_transform": dg.AssetIn(
-            key="built",
-            input_manager_key="reprojected_raster_manager",
-        ),
-    },
-    partitions_def=zone_partitions,
-    group_name="plot",
-)
-def built_plot(data_and_transform: tuple[np.ndarray, Affine]) -> Figure:
-    bounds = get_bounds_base()
-    labels = get_labels_zone()
-    legend_pos = get_legend_pos_base()
-    return plot_raster(bounds, data_and_transform, labels=labels, legend_pos=legend_pos)
+def built_plot_factory(
+    level: str,
+    *,
+    bounds_op: dg.OpDefinition,
+    labels_op: dg.OpDefinition,
+    legend_pos_op: dg.OpDefinition,
+    partitions_def: dg.PartitionsDefinition,
+) -> dg.AssetsDefinition:
+    @dg.graph_asset(
+        name="built",
+        key_prefix=f"plot_{level}",
+        ins={
+            "data_and_transform": dg.AssetIn(
+                key=f"built_{level}",
+                input_manager_key="reprojected_raster_manager",
+            ),
+        },
+        partitions_def=partitions_def,
+        group_name=f"plot_{level}",
+    )
+    def _asset(data_and_transform: tuple[np.ndarray, Affine]) -> Figure:
+        bounds = bounds_op()
+        labels = labels_op()
+        legend_pos = legend_pos_op()
+        return plot_raster(
+            bounds,
+            data_and_transform,
+            labels=labels,
+            legend_pos=legend_pos,
+        )
 
-
-@dg.graph_asset(
-    name="built",
-    key_prefix="plot_mun",
-    ins={"data_and_transform": dg.AssetIn(key="built_mun")},
-    partitions_def=mun_partitions,
-    group_name="plot_mun",
-)
-def built_plot_mun(data_and_transform: tuple[np.ndarray, Affine]) -> Figure:
-    bounds = get_bounds_mun()
-    return plot_raster(bounds, data_and_transform)
+    return _asset
 
 
 @dg.graph_asset(
@@ -128,3 +133,20 @@ def built_plot_mun(data_and_transform: tuple[np.ndarray, Affine]) -> Figure:
 def built_plot_trimmed(data_and_transform: tuple[np.ndarray, Affine]) -> Figure:
     bounds = get_bounds_trimmed()
     return plot_raster(bounds, data_and_transform)
+
+
+built_plot_zone = built_plot_factory(
+    "zone",
+    bounds_op=get_bounds_base,
+    labels_op=get_labels_zone,
+    legend_pos_op=get_legend_pos_base,
+    partitions_def=zone_partitions,
+)
+
+built_plot_mun = built_plot_factory(
+    "mun",
+    bounds_op=get_bounds_mun,
+    labels_op=get_labels_mun,
+    legend_pos_op=get_legend_pos_mun,
+    partitions_def=mun_partitions,
+)

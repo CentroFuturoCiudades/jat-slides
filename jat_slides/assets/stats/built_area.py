@@ -5,7 +5,7 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import rasterio as rio
-import rasterio.mask  # pylint: disable=unused-import
+import rasterio.mask as rio_mask
 from affine import Affine
 
 from dagster import AssetIn, Out, graph, graph_asset, op
@@ -23,7 +23,7 @@ def load_built_area_rasters_factory(year: int):
     ) -> tuple[np.ndarray, Affine]:
         fpath = Path(path_resource.ghsl_path) / f"BUILT_100/{year}.tif"
         with rio.open(fpath, nodata=65535) as ds:
-            data, transform = rio.mask.mask(ds, bounds[year], crop=True, nodata=0)
+            data, transform = rio_mask.mask(ds, bounds[year], crop=True, nodata=0)
 
         data[data == 65535] = 0
         return data, transform
@@ -44,7 +44,7 @@ def reduce_area_rasters(
 ) -> pd.DataFrame:
     out = []
     for year, arr in zip(YEARS, rasters):
-        out.append(dict(year=year, area=arr.sum()))
+        out.append({"year": year, "area": arr.sum()})
     return pd.DataFrame(out)
 
 
@@ -59,6 +59,7 @@ def get_bounds(
     for year, agebs in zip(
         (1990, 2000, 2010, 2020),
         (agebs_1990, agebs_2000, agebs_2010, agebs_2020),
+        strict=True,
     ):
         bounds[year] = agebs["geometry"].to_numpy().tolist()
     return bounds
@@ -82,13 +83,13 @@ def built_area_graph(
 
 
 def built_area_factory(suffix: str):
-    if suffix == "":
+    if suffix == "zone":
         prefix = "agebs"
         partitions_def = zone_partitions
-    elif suffix == "_mun":
+    elif suffix == "mun":
         prefix = "muns"
         partitions_def = mun_partitions
-    elif suffix == "_trimmed":
+    elif suffix == "trimmed":
         prefix = "agebs_trimmed"
         partitions_def = zone_partitions
     else:
@@ -102,9 +103,9 @@ def built_area_factory(suffix: str):
             "agebs_2020": AssetIn(key=[prefix, "2020"]),
         },
         name="built_area",
-        key_prefix=f"stats{suffix}",
+        key_prefix=f"stats_{suffix}",
         partitions_def=partitions_def,
-        group_name=f"stats{suffix}",
+        group_name=f"stats_{suffix}",
     )
     def _asset(
         agebs_1990: gpd.GeoDataFrame,
@@ -117,4 +118,4 @@ def built_area_factory(suffix: str):
     return _asset
 
 
-dassets = [built_area_factory(suffix) for suffix in ("", "_mun", "_trimmed")]
+dassets = [built_area_factory(suffix) for suffix in ("zone", "mun", "trimmed")]

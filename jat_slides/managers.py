@@ -97,7 +97,9 @@ class RasterIOManager(BaseManager):
         return data, transform
 
     def handle_output(
-        self, context: OutputContext, obj: tuple[np.ndarray, Affine]
+        self,
+        context: OutputContext,
+        obj: tuple[np.ndarray, Affine],
     ) -> None:
         fpath = self._get_path(context)
         fpath.parent.mkdir(exist_ok=True, parents=True)

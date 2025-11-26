@@ -13,17 +13,21 @@ from jat_slides.assets.maps.common import (
     add_overlay,
     generate_figure,
     get_bounds_base,
+    get_bounds_mun,
+    get_labels_mun,
     get_bounds_trimmed,
     get_labels_zone,
     get_linewidth,
     intersect_geometries,
 )
-from jat_slides.partitions import zone_partitions
+from jat_slides.partitions import zone_partitions, mun_partitions
 from jat_slides.resources import PathResource
 
 
 def add_categorical_column(
-    df: gpd.GeoDataFrame, column: str, bins: int
+    df: gpd.GeoDataFrame,
+    column: str,
+    bins: int,
 ) -> tuple[gpd.GeoDataFrame, dict[int, str]]:
     breaks_orig = jenkspy.jenks_breaks(df[column], bins)
     breaks_middle = np.round(np.array(breaks_orig[1:-1]) / 100) * 100
@@ -95,6 +99,11 @@ def plot_jobs(
         legend_kwds={"framealpha": 1, "title": "Número de empleos"},
     )
     leg = ax.get_legend()
+
+    if leg is None:
+        err = "Legend not found in jobs plot."
+        raise ValueError(err)
+
     replace_categorical_legend(leg, label_map)
     leg.set_zorder(9999)
 
@@ -105,34 +114,55 @@ def plot_jobs(
     return fig
 
 
-# pylint: disable=no-value-for-parameter
-@dg.graph_asset(
-    name="jobs",
-    key_prefix="plot",
-    ins={"df_jobs": dg.AssetIn(["jobs", "reprojected"])},
-    partitions_def=zone_partitions,
-    group_name="plot",
-)
-def jobs_plot(df_jobs: gpd.GeoDataFrame) -> Figure:
-    lw = get_linewidth()
-    bounds = get_bounds_base()
-    labels = get_labels_zone()
-    return plot_jobs(df_jobs, bounds, lw, labels)
+def jobs_plot_factory(
+    level: str,
+    *,
+    bounds_op: dg.OpDefinition,
+    labels_op: dg.OpDefinition,
+    partitions_def: dg.PartitionsDefinition,
+) -> dg.AssetsDefinition:
+    @dg.graph_asset(
+        name="jobs",
+        key_prefix=f"plot_{level}",
+        ins={"df_jobs": dg.AssetIn([f"jobs_{level}", "reprojected"])},
+        partitions_def=partitions_def,
+        group_name=f"plot_{level}",
+    )
+    def _asset(df_jobs: gpd.GeoDataFrame) -> Figure:
+        lw = get_linewidth()
+        bounds = bounds_op()
+        labels = labels_op()
+        return plot_jobs(df_jobs, bounds, lw, labels)
+
+    return _asset
 
 
 # pylint: disable=no-value-for-parameter
-@dg.graph_asset(
-    name="jobs",
-    key_prefix="plot_trimmed",
-    ins={
-        "agebs": dg.AssetIn(["agebs_trimmed", "2020"]),
-        "df_jobs": dg.AssetIn(["jobs", "reprojected"]),
-    },
+# @dg.graph_asset(
+#     name="jobs",
+#     key_prefix="plot_trimmed",
+#     ins={
+#         "agebs": dg.AssetIn(["agebs_trimmed", "2020"]),
+#         "df_jobs": dg.AssetIn(["jobs", "reprojected"]),
+#     },
+#     partitions_def=zone_partitions,
+#     group_name="plot_trimmed",
+# )
+# def jobs_trimmed_plot(agebs: gpd.GeoDataFrame, df_jobs: gpd.GeoDataFrame) -> Figure:
+#     df = intersect_geometries(df_jobs, agebs)
+#     lw = get_linewidth()
+#     bounds = get_bounds_trimmed()
+#     return plot_jobs(df, bounds, lw)
+
+jobs_plot_zone = jobs_plot_factory(
+    "zone",
+    bounds_op=get_bounds_base,
+    labels_op=get_labels_zone,
     partitions_def=zone_partitions,
-    group_name="plot_trimmed",
 )
-def jobs_trimmed_plot(agebs: gpd.GeoDataFrame, df_jobs: gpd.GeoDataFrame) -> Figure:
-    df = intersect_geometries(df_jobs, agebs)
-    lw = get_linewidth()
-    bounds = get_bounds_trimmed()
-    return plot_jobs(df, bounds, lw)
+jobs_plot_mun = jobs_plot_factory(
+    "mun",
+    bounds_op=get_bounds_mun,
+    labels_op=get_labels_mun,
+    partitions_def=mun_partitions,
+)
