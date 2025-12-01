@@ -1,11 +1,13 @@
 import geopandas as gpd
 
 import dagster as dg
-from jat_slides.partitions import zone_partitions, mun_partitions
+from jat_slides.partitions import mun_partitions, zone_partitions
 
 
 def total_jobs_factory(
-    level: str, *, partitions_def: dg.PartitionsDefinition
+    level: str,
+    *,
+    partitions_def: dg.PartitionsDefinition,
 ) -> dg.AssetsDefinition:
     @dg.asset(
         name="total_jobs",
@@ -23,5 +25,7 @@ def total_jobs_factory(
 
 dassets = [
     total_jobs_factory(level, partitions_def=partitions_def)
-    for level, partitions_def in zip(("zone", "mun"), (zone_partitions, mun_partitions))
+    for level, partitions_def in zip(
+        ("zone", "mun"), (zone_partitions, mun_partitions), strict=False
+    )
 ]

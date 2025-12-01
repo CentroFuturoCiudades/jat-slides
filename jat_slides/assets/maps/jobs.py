@@ -15,12 +15,10 @@ from jat_slides.assets.maps.common import (
     get_bounds_base,
     get_bounds_mun,
     get_labels_mun,
-    get_bounds_trimmed,
     get_labels_zone,
     get_linewidth,
-    intersect_geometries,
 )
-from jat_slides.partitions import zone_partitions, mun_partitions
+from jat_slides.partitions import mun_partitions, zone_partitions
 from jat_slides.resources import PathResource
 
 
@@ -40,7 +38,7 @@ def add_categorical_column(
 
     mask = pd.Series([0] * len(df), index=df.index, dtype=int)
     label_map = {}
-    for i, (start, end) in enumerate(zip(breaks, breaks[1:])):
+    for i, (start, end) in enumerate(zip(breaks, breaks[1:], strict=False)):
         mask = mask + ((df[column] >= start) & (df[column] < end)) * (i + 1)
         label_map[i + 1] = f"{start:,.0f} - {end:,.0f}"
 

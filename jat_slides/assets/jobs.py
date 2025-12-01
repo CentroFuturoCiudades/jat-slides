@@ -4,7 +4,7 @@ import geopandas as gpd
 import pandas as pd
 
 import dagster as dg
-from jat_slides.partitions import zone_partitions, mun_partitions
+from jat_slides.partitions import mun_partitions, zone_partitions
 from jat_slides.resources import PathResource
 
 
@@ -27,7 +27,9 @@ def jobs_geo(path_resource: PathResource) -> gpd.GeoDataFrame:
 
 
 def jobs_reprojected_factory(
-    level: str, *, partitions_def: dg.PartitionsDefinition
+    level: str,
+    *,
+    partitions_def: dg.PartitionsDefinition,
 ) -> dg.AssetsDefinition:
     @dg.asset(
         name="reprojected",
@@ -64,5 +66,7 @@ def jobs_reprojected_factory(
 
 dassets = [
     jobs_reprojected_factory(level, partitions_def=partitions_def)
-    for level, partitions_def in zip(("zone", "mun"), (zone_partitions, mun_partitions))
+    for level, partitions_def in zip(
+        ("zone", "mun"), (zone_partitions, mun_partitions), strict=False
+    )
 ]

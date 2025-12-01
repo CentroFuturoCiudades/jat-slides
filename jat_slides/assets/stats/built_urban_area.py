@@ -17,6 +17,7 @@ def calculate_built_urban_area(
     for year, agebs in zip(
         (1990, 2000, 2010, 2020),
         (agebs_1990, agebs_2000, agebs_2010, agebs_2020),
+        strict=False,
     ):
         area = agebs.to_crs("EPSG:6372").area.sum()
         out.append(dict(year=year, area=area))

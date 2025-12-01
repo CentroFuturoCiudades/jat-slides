@@ -41,7 +41,7 @@ def add_pop_legend(bounds, *, ax, cmap: mcol.Colormap, legend_pos: str = "upper 
     cmap = cmap.resampled(7)
 
     patches = []
-    for i, (lower, upper) in enumerate(zip(bounds, bounds[1:])):
+    for i, (lower, upper) in enumerate(zip(bounds, bounds[1:], strict=False)):
         if np.round(lower) == 0 and np.round(upper) == 0:
             label = "Sin cambio"
         else:

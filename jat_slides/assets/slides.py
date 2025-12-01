@@ -15,8 +15,7 @@ from pptx.text.text import TextFrame
 from pptx.util import Cm, Pt
 
 import dagster as dg
-from jat_slides.partitions import zone_partitions, mun_partitions
-from jat_slides.resources import ConfigResource
+from jat_slides.partitions import mun_partitions, zone_partitions
 
 RGB_BLUE = RGBColor(0x00, 0x70, 0xC0)
 RGB_RED = RGBColor(0xFF, 0x00, 0x00)
@@ -326,13 +325,15 @@ def generate_single_slide(
 
 
 def slides_factory(
-    level: str, *, partitions_def: dg.PartitionsDefinition
+    level: str,
+    *,
+    partitions_def: dg.PartitionsDefinition,
 ) -> dg.AssetsDefinition:
     @dg.asset(
         name=f"slides_{level}",
         ins={
             "lost_pop_after_2000": dg.AssetIn(
-                key=[f"stats_{level}", "lost_pop_after_2000"]
+                key=[f"stats_{level}", "lost_pop_after_2000"],
             ),
             "built_after_2000": dg.AssetIn(key=[f"stats_{level}", "built_after_2000"]),
             "pop_df": dg.AssetIn(key=[f"stats_{level}", "population"]),

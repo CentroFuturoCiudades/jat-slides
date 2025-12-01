@@ -43,7 +43,7 @@ def reduce_area_rasters(
     transforms: list[Affine],
 ) -> pd.DataFrame:
     out = []
-    for year, arr in zip(YEARS, rasters):
+    for year, arr in zip(YEARS, rasters, strict=False):
         out.append({"year": year, "area": arr.sum()})
     return pd.DataFrame(out)
 
