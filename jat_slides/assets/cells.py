@@ -21,7 +21,10 @@ def cells_base(
 ) -> gpd.GeoDataFrame:
     fpath = (
         Path(path_resource.pg_path)
-        / f"differences/2000_2020/{context.partition_key}.gpkg"
+        / "final"
+        / "differences"
+        / "2000_2020"
+        / f"{context.partition_key}.gpkg"
     )
     return gpd.read_file(fpath)
 
