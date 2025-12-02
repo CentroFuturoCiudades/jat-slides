@@ -67,6 +67,8 @@ def jobs_reprojected_factory(
 dassets = [
     jobs_reprojected_factory(level, partitions_def=partitions_def)
     for level, partitions_def in zip(
-        ("zone", "mun"), (zone_partitions, mun_partitions), strict=False
+        ("zone", "mun"),
+        (zone_partitions, mun_partitions),
+        strict=False,
     )
 ]
