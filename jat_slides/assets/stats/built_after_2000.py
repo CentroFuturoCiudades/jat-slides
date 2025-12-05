@@ -5,12 +5,10 @@ import dagster as dg
 from jat_slides.partitions import mun_partitions, zone_partitions
 
 
-def calculate_frac_built(built_data: tuple[np.ndarray, Affine]) -> float:
-    arr, _ = built_data
-    return (arr >= 2000).sum() / (arr > 0).sum()
-
-
-def built_after_2000_factory(suffix: str, partitions_def: dg.PartitionsDefinition):
+def built_after_2000_factory(
+    suffix: str,
+    partitions_def: dg.PartitionsDefinition,
+) -> dg.AssetsDefinition:
     @dg.asset(
         name="built_after_2000",
         key_prefix=f"stats_{suffix}",
@@ -20,7 +18,8 @@ def built_after_2000_factory(suffix: str, partitions_def: dg.PartitionsDefinitio
         group_name=f"stats_{suffix}",
     )
     def _asset(built_data: tuple[np.ndarray, Affine]) -> float:
-        return calculate_frac_built(built_data)
+        arr, _ = built_data
+        return (arr >= 2000).sum() / (arr > 0).sum()
 
     return _asset
 
@@ -28,8 +27,8 @@ def built_after_2000_factory(suffix: str, partitions_def: dg.PartitionsDefinitio
 dassets = [
     built_after_2000_factory(suffix, partitions_def=partitions_def)
     for suffix, partitions_def in zip(
-        ("zone", "mun", "trimmed"),
-        (zone_partitions, mun_partitions, zone_partitions),
+        ("zone", "mun"),
+        (zone_partitions, mun_partitions),
         strict=True,
     )
 ]

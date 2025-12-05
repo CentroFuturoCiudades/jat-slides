@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import toml
 
 import dagster as dg
@@ -34,42 +36,34 @@ class ConfigResource(ConfigurableResource):
     linewidths: dict[str, float] | None = None
     legend_pos: dict[str, str] | None = None
     add_labels: dict[str, list[str]] | None = None
+    overlays: dict[str, dict[str, dict]] | None = None
 
 
-with open("./config/zone.toml", encoding="utf8") as f:
+zone_config_path = Path("./config/zone.toml")
+with zone_config_path.open(encoding="utf8") as f:
     config = toml.load(f)
 
 zone_config = ConfigResource(
     names=config.get("names"),
-    bounds=config.get("bounds"),
+    bounds=config["bounds"],
     linewidths=config.get("linewidths"),
     legend_pos=config.get("legend_pos"),
     add_labels=config.get("add_labels"),
+    overlays=config.get("overlays"),
 )
 
-
-with open("./config/mun.toml", encoding="utf8") as f:
+mun_config_path = Path("./config/mun.toml")
+with mun_config_path.open(encoding="utf8") as f:
     config = toml.load(f)
 
 mun_config = ConfigResource(
     names=config.get("names"),
-    bounds=config.get("bounds"),
+    bounds=config["bounds"],
     linewidths=config.get("linewidths"),
     legend_pos=config.get("legend_pos"),
     add_labels=config.get("add_labels"),
+    overlays=config.get("overlays"),
 )
-
-
-with open("./config/trimmed.toml", encoding="utf8") as f:
-    config = toml.load(f)
-trimmed_config = ConfigResource(
-    names=config.get("names"),
-    bounds=config.get("bounds"),
-    linewidths=config.get("linewidths"),
-    legend_pos=config.get("legend_pos"),
-    add_labels=config.get("add_labels"),
-)
-
 
 path_resource = PathResource(
     ghsl_path=dg.EnvVar("GHSL_PATH"),
@@ -85,6 +79,5 @@ defs = dg.Definitions(
         "path_resource": path_resource,
         "zone_config_resource": zone_config,
         "mun_config_resource": mun_config,
-        "trimmed_config_resource": trimmed_config,
     },
 )

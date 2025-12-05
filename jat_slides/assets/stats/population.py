@@ -1,9 +1,7 @@
-from typing import assert_never
-
 import geopandas as gpd
 import pandas as pd
 
-from dagster import AssetIn, asset
+import dagster as dg
 from jat_slides.partitions import mun_partitions, zone_partitions
 
 
@@ -24,25 +22,15 @@ def calculate_lost_pop(
     return pd.DataFrame(pops)
 
 
-def population_factory(suffix: str):
-    if suffix == "zone":
-        prefix = "agebs"
-        partitions_def = zone_partitions
-    elif suffix == "mun":
-        prefix = "muns"
-        partitions_def = mun_partitions
-    elif suffix == "trimmed":
-        prefix = "agebs_trimmed"
-        partitions_def = zone_partitions
-    else:
-        assert_never(suffix)
-
-    @asset(
+def population_factory(
+    suffix: str, *, prefix: str, partitions_def: dg.PartitionsDefinition
+) -> dg.AssetsDefinition:
+    @dg.asset(
         ins={
-            "agebs_1990": AssetIn(key=[prefix, "1990"]),
-            "agebs_2000": AssetIn(key=[prefix, "2000"]),
-            "agebs_2010": AssetIn(key=[prefix, "2010"]),
-            "agebs_2020": AssetIn(key=[prefix, "2020"]),
+            "agebs_1990": dg.AssetIn(key=[prefix, "1990"]),
+            "agebs_2000": dg.AssetIn(key=[prefix, "2000"]),
+            "agebs_2010": dg.AssetIn(key=[prefix, "2010"]),
+            "agebs_2020": dg.AssetIn(key=[prefix, "2020"]),
         },
         name="population",
         key_prefix=f"stats_{suffix}",
@@ -61,4 +49,7 @@ def population_factory(suffix: str):
     return _asset
 
 
-dassets = [population_factory(suffix) for suffix in ["zone", "mun", "trimmed"]]
+population_zone = population_factory(
+    "zone", prefix="agebs", partitions_def=zone_partitions
+)
+population_mun = population_factory("mun", prefix="muns", partitions_def=mun_partitions)

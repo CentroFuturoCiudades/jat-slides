@@ -30,27 +30,6 @@ def cells_base(
 
 
 @dg.asset(
-    name="trimmed",
-    key_prefix="cells",
-    ins={
-        "agebs": dg.AssetIn(["agebs_trimmed", "2020"]),
-        "cells": dg.AssetIn(["cells", "zone"]),
-    },
-    partitions_def=zone_partitions,
-    io_manager_key="gpkg_manager",
-    group_name="cells_trimmed",
-)
-def cells_trimmed(agebs: gpd.GeoDataFrame, cells: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
-    if cells.crs is None:
-        err = "Cells GeoDataFrame has no CRS"
-        raise ValueError(err)
-
-    agebs = agebs.to_crs(cells.crs)
-    idx = cells.sjoin(agebs[["geometry"]]).index.unique()
-    return cells.loc[idx]
-
-
-@dg.asset(
     name="mun",
     key_prefix="cells",
     ins={"agebs": dg.AssetIn(["muns", "2020"])},

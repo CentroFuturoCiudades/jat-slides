@@ -1,5 +1,7 @@
 import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
@@ -11,17 +13,19 @@ from pptx.shapes.autoshape import Shape
 from pptx.shapes.base import BaseShape
 from pptx.shapes.shapetree import SlideShapes
 from pptx.slide import SlideLayout
-from pptx.text.text import TextFrame
 from pptx.util import Cm, Pt
 
 import dagster as dg
 from jat_slides.partitions import mun_partitions, zone_partitions
 
+if TYPE_CHECKING:
+    from pptx.text.text import TextFrame
+
 RGB_BLUE = RGBColor(0x00, 0x70, 0xC0)
 RGB_RED = RGBColor(0xFF, 0x00, 0x00)
 
 
-def find_layouts(pres) -> dict:
+def find_layouts(pres: PresentationType) -> dict:
     layouts = {}
     for layout in pres.slide_layouts:
         name = layout.name
@@ -43,8 +47,9 @@ def find_shape(shapes: SlideShapes, prefix: str) -> BaseShape:
         if shape.name.startswith(prefix):
             return shape
 
+    err = f"Shape with prefix '{prefix}' not found in the slide shapes."
     raise ValueError(
-        f"Shape with prefix '{prefix}' not found in the slide shapes.",
+        err,
     )
 
 
@@ -56,11 +61,12 @@ def add_title_slide(pres: PresentationType, title_layout: SlideLayout) -> None:
     date_shape = placeholders[2]
 
     if not isinstance(title_shape, Shape) or not isinstance(date_shape, Shape):
-        raise TypeError("Placeholders are not of type Shape.")
+        err = "Placeholders are not of type Shape."
+        raise TypeError(err)
 
     title_shape.text = "Dinámicas Urbanas"
     date_shape.text = format_date(
-        datetime.date.today(),
+        datetime.datetime.now(tz=ZoneInfo("America/Mexico_City")).date(),
         locale="es",
         format="long",
     )
@@ -189,7 +195,7 @@ def add_built_slide(
     table.columns[2].width = Cm(3.0)
     table.columns[3].width = Cm(2.9)
 
-    tbl = table_frame._element.graphic.graphicData.tbl
+    tbl = table_frame._element.graphic.graphicData.tbl  # noqa: SLF001
     tbl[0][-1].text = "{2D5ABB26-0587-4C30-8999-92F81FD0307C}"
 
     text_arr = np.array(
@@ -248,7 +254,6 @@ def add_single_picture_slide(
     *,
     picture_path: Path,
     title: str,
-    total_jobs: float | None = None,
 ) -> None:
     slide = pres.slides.add_slide(layout)
 
@@ -285,7 +290,10 @@ def generate_single_slide(
         title="Dinámica de población 2000 a 2020",
         text_left="El ",
         highlight=f"{lost_pop_after_2000:.0%}",
-        text_right=" de la superficie construida de 2020 perdió población con respecto al 2000.",
+        text_right=(
+            " de la superficie construida de 2020 perdió población"
+            " con respecto al 2000."
+        ),
         picture_path=pg_figure_path,
         color=RGB_RED,
     )
@@ -318,8 +326,6 @@ def generate_single_slide(
         picture_path=jobs_figure_path,
         color=RGB_BLUE,
     )
-
-    # add_single_picture_slide(pres, layouts["picture_with_title_and_content"], picture_path=jobs_figure_path, title="Número total de empleos")
 
     return pres
 

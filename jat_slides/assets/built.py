@@ -126,23 +126,3 @@ def built_mun(
     agebs_2020: gpd.GeoDataFrame,
 ) -> tuple[np.ndarray, Affine]:
     return built_graph(agebs_1990, agebs_2000, agebs_2010, agebs_2020)  # type: ignore[return-value]
-
-
-@dg.graph_asset(
-    name="built_trimmed",
-    ins={
-        "agebs_1990": dg.AssetIn(key=["agebs_trimmed", "1990"]),
-        "agebs_2000": dg.AssetIn(key=["agebs_trimmed", "2000"]),
-        "agebs_2010": dg.AssetIn(key=["agebs_trimmed", "2010"]),
-        "agebs_2020": dg.AssetIn(key=["agebs_trimmed", "2020"]),
-    },
-    partitions_def=zone_partitions,
-    group_name="built_rasters_trimmed",
-)
-def built_trimmed(
-    agebs_1990: gpd.GeoDataFrame,
-    agebs_2000: gpd.GeoDataFrame,
-    agebs_2010: gpd.GeoDataFrame,
-    agebs_2020: gpd.GeoDataFrame,
-) -> tuple[np.ndarray, Affine]:
-    return built_graph(agebs_1990, agebs_2000, agebs_2010, agebs_2020)  # type: ignore[return-value]

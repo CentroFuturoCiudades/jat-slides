@@ -1,9 +1,7 @@
-from typing import assert_never
-
 import geopandas as gpd
 import pandas as pd
 
-from dagster import AssetIn, asset
+import dagster as dg
 from jat_slides.partitions import mun_partitions, zone_partitions
 
 
@@ -20,32 +18,22 @@ def calculate_built_urban_area(
         strict=False,
     ):
         area = agebs.to_crs("EPSG:6372").area.sum()
-        out.append(dict(year=year, area=area))
-    out = pd.DataFrame(out)
-    return out
+        out.append({"year": year, "area": area})
+
+    return pd.DataFrame(out)
 
 
-def built_urban_area_factory(suffix: str):
-    if suffix == "zone":
-        prefix = "agebs"
-        partitions_def = zone_partitions
-    elif suffix == "mun":
-        prefix = "muns"
-        partitions_def = mun_partitions
-    elif suffix == "trimmed":
-        prefix = "agebs_trimmed"
-        partitions_def = zone_partitions
-    else:
-        assert_never(suffix)
-
-    @asset(
+def built_urban_area_factory(
+    suffix: str, *, prefix: str, partitions_def: dg.PartitionsDefinition
+) -> dg.AssetsDefinition:
+    @dg.asset(
         name="built_urban_area",
         key_prefix=f"stats_{suffix}",
         ins={
-            "agebs_1990": AssetIn(key=[prefix, "1990"]),
-            "agebs_2000": AssetIn(key=[prefix, "2000"]),
-            "agebs_2010": AssetIn(key=[prefix, "2010"]),
-            "agebs_2020": AssetIn(key=[prefix, "2020"]),
+            "agebs_1990": dg.AssetIn(key=[prefix, "1990"]),
+            "agebs_2000": dg.AssetIn(key=[prefix, "2000"]),
+            "agebs_2010": dg.AssetIn(key=[prefix, "2010"]),
+            "agebs_2020": dg.AssetIn(key=[prefix, "2020"]),
         },
         partitions_def=partitions_def,
         group_name=f"stats_{suffix}",
@@ -67,4 +55,9 @@ def built_urban_area_factory(suffix: str):
     return _asset
 
 
-dassets = [built_urban_area_factory(suffix) for suffix in ("zone", "mun", "trimmed")]
+built_urban_area_zone = built_urban_area_factory(
+    "zone", prefix="agebs", partitions_def=zone_partitions
+)
+built_urban_area_mun = built_urban_area_factory(
+    "mun", prefix="muns", partitions_def=mun_partitions
+)

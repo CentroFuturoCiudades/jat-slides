@@ -1,3 +1,4 @@
+import itertools
 import os
 from pathlib import Path
 from typing import Literal
@@ -5,6 +6,7 @@ from typing import Literal
 import contextily as cx
 import geopandas as gpd
 import matplotlib.colors as mcol
+import matplotlib.patheffects as mpe
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -12,7 +14,6 @@ import shapely
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.patches import Patch
-from shapely.plotting import plot_line
 
 import dagster as dg
 from jat_slides.resources import (
@@ -26,7 +27,7 @@ cmap_rdbu = mcol.LinearSegmentedColormap.from_list(
 )
 
 
-def get_cmap_bounds(differences, n_steps) -> np.ndarray:
+def get_cmap_bounds(differences: np.ndarray, n_steps: int) -> np.ndarray:
     pos_step = differences.max() / n_steps
     neg_step = differences.min() / n_steps
 
@@ -37,11 +38,17 @@ def get_cmap_bounds(differences, n_steps) -> np.ndarray:
     )
 
 
-def add_pop_legend(bounds, *, ax, cmap: mcol.Colormap, legend_pos: str = "upper right"):
+def add_pop_legend(
+    bounds: np.ndarray,
+    *,
+    ax: Axes,
+    cmap: mcol.Colormap,
+    legend_pos: str = "upper right",
+) -> None:
     cmap = cmap.resampled(7)
 
     patches = []
-    for i, (lower, upper) in enumerate(zip(bounds, bounds[1:], strict=False)):
+    for i, (lower, upper) in enumerate(itertools.pairwise(bounds)):
         if np.round(lower) == 0 and np.round(upper) == 0:
             label = "Sin cambio"
         else:
@@ -215,7 +222,7 @@ def generate_figure(
     fig.subplots_adjust(right=1)
     fig.subplots_adjust(left=0)
 
-    cx.add_basemap(ax, source=cx.providers.CartoDB.PositronNoLabels, crs="EPSG:4326")  # type: ignore
+    cx.add_basemap(ax, source=cx.providers.CartoDB.PositronNoLabels, crs="EPSG:4326")  # pyright: ignore[reportAttributeAccessIssue]
 
     if add_mun_bounds:
         if population_grids_path is None:
@@ -311,6 +318,25 @@ def get_legend_pos_op_factory(level: str) -> dg.OpDefinition:
         if context.partition_key in config_resource.legend_pos:
             return config_resource.legend_pos[context.partition_key]
         return "upper right"
+
+    return _op
+
+
+def get_overlay_config_op_factory(level: str) -> dg.OpDefinition:
+    @dg.op(
+        name=f"get_overlay_config_{level}",
+        required_resource_keys={f"{level}_config_resource"},
+    )
+    def _op(context: dg.OpExecutionContext) -> dict | None:
+        config_resource = getattr(context.resources, f"{level}_config_resource", None)
+        if config_resource is None:
+            err = f"Resource '{level}_config_resource' not found in context.resources"
+            raise ValueError(err)
+
+        if context.partition_key in config_resource.overlays:
+            return config_resource.overlays[context.partition_key]
+
+        return None
 
     return _op
 
@@ -417,16 +443,33 @@ def intersect_geometries(
     return sources.loc[idx]
 
 
-def add_overlay(fpath: Path, ax: Axes) -> None:
-    if fpath.exists():
-        geom = gpd.read_file(fpath).to_crs("EPSG:4326")["geometry"].item()
-        plot_line(geom, ax=ax, linewidth=3, color="k", add_points=False)
+def add_overlay(overlay_dir: Path, *, ax: Axes, config: dict | None) -> None:
+    if overlay_dir.exists():
+        for fpath in overlay_dir.glob("*.gpkg"):
+            if config is None:
+                subconfig = {"linewidth": 3, "color": "k", "add_points": False}
+            else:
+                subconfig = config[fpath.stem]
+
+            if "patheffects" in subconfig:
+                path_effects = subconfig.pop("patheffects")
+                subconfig["path_effects"] = [
+                    mpe.Stroke(
+                        linewidth=path_effects["linewidth"],
+                        foreground=path_effects["foreground"],
+                    ),
+                    mpe.Normal(),
+                ]
+
+            geom = gpd.read_file(fpath).to_crs("EPSG:4326")["geometry"]
+            geom.plot(ax=ax, **subconfig)
 
 
 get_bounds_base = get_bounds_op_factory("zone")
 get_bounds_mun = get_bounds_op_factory("mun")
-get_bounds_trimmed = get_bounds_op_factory("trimmed")
 
 get_legend_pos_base = get_legend_pos_op_factory("zone")
 get_legend_pos_mun = get_legend_pos_op_factory("mun")
-get_legend_pos_trimmed = get_legend_pos_op_factory("trimmed")
+
+get_overlay_config_zone = get_overlay_config_op_factory("zone")
+get_overlay_config_mun = get_overlay_config_op_factory("mun")

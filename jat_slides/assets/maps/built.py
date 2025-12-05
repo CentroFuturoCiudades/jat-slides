@@ -5,6 +5,7 @@ import numpy as np
 import rasterio.plot as rio_plot
 from affine import Affine
 from matplotlib.axes import Axes
+from matplotlib.colors import Colormap
 from matplotlib.figure import Figure
 from matplotlib.patches import Patch
 
@@ -14,17 +15,21 @@ from jat_slides.assets.maps.common import (
     generate_figure,
     get_bounds_base,
     get_bounds_mun,
-    get_bounds_trimmed,
     get_labels_mun,
     get_labels_zone,
     get_legend_pos_base,
     get_legend_pos_mun,
+    get_overlay_config_mun,
+    get_overlay_config_zone,
 )
 from jat_slides.partitions import mun_partitions, zone_partitions
 from jat_slides.resources import PathResource
 
 
-def add_built_legend(cmap, *, ax: Axes) -> None:
+def add_built_legend(cmap: Colormap, *, ax: Axes, loc: str | None) -> None:
+    if loc is None:
+        loc = "upper left"
+
     patches = []
     for i, year in enumerate(range(1975, 2021, 5)):
         label = "1975 o antes" if year == 1975 else str(year)
@@ -35,7 +40,7 @@ def add_built_legend(cmap, *, ax: Axes) -> None:
         title="Año de construcción",
         alignment="left",
         framealpha=1,
-        loc="upper left",
+        loc=loc,
     )
 
     leg.set_zorder(9999)
@@ -52,6 +57,7 @@ def plot_raster(
     data_and_transform: tuple[np.ndarray, Affine],
     labels: dict[str, bool],
     legend_pos: str,
+    overlay_config: dict | None,
 ) -> Figure:
     state = int(context.partition_key.split(".")[0])
 
@@ -80,11 +86,12 @@ def plot_raster(
 
     cmap = mpl.colormaps["magma_r"].resampled(10)
     rio_plot.show(data, transform=transform, ax=ax, cmap=cmap)
-    add_built_legend(cmap, ax=ax)
+    add_built_legend(cmap, ax=ax, loc=legend_pos)
 
-    overlay_path = Path(path_resource.data_path) / "overlays"
-    fpath = overlay_path / f"{context.partition_key}.gpkg"
-    add_overlay(fpath, ax)
+    overlay_dir = (
+        Path(path_resource.data_path) / "overlays" / str(context.partition_key)
+    )
+    add_overlay(overlay_dir, ax=ax, config=overlay_config)
 
     return fig
 
@@ -95,6 +102,7 @@ def built_plot_factory(
     bounds_op: dg.OpDefinition,
     labels_op: dg.OpDefinition,
     legend_pos_op: dg.OpDefinition,
+    overlay_config_op: dg.OpDefinition,
     partitions_def: dg.PartitionsDefinition,
 ) -> dg.AssetsDefinition:
     @dg.graph_asset(
@@ -113,26 +121,16 @@ def built_plot_factory(
         bounds = bounds_op()
         labels = labels_op()
         legend_pos = legend_pos_op()
+        overlay_config = overlay_config_op()
         return plot_raster(
             bounds,
             data_and_transform,
             labels=labels,
             legend_pos=legend_pos,
+            overlay_config=overlay_config,
         )
 
     return _asset
-
-
-@dg.graph_asset(
-    name="built",
-    key_prefix="plot_trimmed",
-    ins={"data_and_transform": dg.AssetIn(key="built_trimmed")},
-    partitions_def=zone_partitions,
-    group_name="plot_trimmed",
-)
-def built_plot_trimmed(data_and_transform: tuple[np.ndarray, Affine]) -> Figure:
-    bounds = get_bounds_trimmed()
-    return plot_raster(bounds, data_and_transform)
 
 
 built_plot_zone = built_plot_factory(
@@ -140,6 +138,7 @@ built_plot_zone = built_plot_factory(
     bounds_op=get_bounds_base,
     labels_op=get_labels_zone,
     legend_pos_op=get_legend_pos_base,
+    overlay_config_op=get_overlay_config_zone,
     partitions_def=zone_partitions,
 )
 
@@ -148,5 +147,6 @@ built_plot_mun = built_plot_factory(
     bounds_op=get_bounds_mun,
     labels_op=get_labels_mun,
     legend_pos_op=get_legend_pos_mun,
+    overlay_config_op=get_overlay_config_mun,
     partitions_def=mun_partitions,
 )

@@ -1,3 +1,4 @@
+import itertools
 from pathlib import Path
 
 import geopandas as gpd
@@ -17,6 +18,8 @@ from jat_slides.assets.maps.common import (
     get_labels_mun,
     get_labels_zone,
     get_linewidth,
+    get_overlay_config_mun,
+    get_overlay_config_zone,
 )
 from jat_slides.partitions import mun_partitions, zone_partitions
 from jat_slides.resources import PathResource
@@ -27,7 +30,7 @@ def add_categorical_column(
     column: str,
     bins: int,
 ) -> tuple[gpd.GeoDataFrame, dict[int, str]]:
-    breaks_orig = jenkspy.jenks_breaks(df[column], bins)
+    breaks_orig = jenkspy.jenks_breaks(df[column], bins)  # pyright: ignore[reportArgumentType]
     breaks_middle = np.round(np.array(breaks_orig[1:-1]) / 100) * 100
 
     start = np.floor(breaks_orig[0] / 100) * 100
@@ -38,7 +41,7 @@ def add_categorical_column(
 
     mask = pd.Series([0] * len(df), index=df.index, dtype=int)
     label_map = {}
-    for i, (start, end) in enumerate(zip(breaks, breaks[1:], strict=False)):
+    for i, (start, end) in enumerate(itertools.pairwise(breaks)):
         mask = mask + ((df[column] >= start) & (df[column] < end)) * (i + 1)
         label_map[i + 1] = f"{start:,.0f} - {end:,.0f}"
 
@@ -46,7 +49,7 @@ def add_categorical_column(
     return df, label_map
 
 
-def replace_categorical_legend(legend: Legend, label_map: dict[int, str]):
+def replace_categorical_legend(legend: Legend, label_map: dict[int, str]) -> None:
     for text in legend.texts:
         text.set_text(label_map[int(text.get_text())])
 
@@ -59,6 +62,7 @@ def plot_jobs(
     bounds: tuple[float, float, float, float],
     lw: float,
     labels: dict[str, bool],
+    overlay_config: dict | None,
 ) -> Figure:
     state = int(context.partition_key.split(".")[0])
 
@@ -105,9 +109,10 @@ def plot_jobs(
     replace_categorical_legend(leg, label_map)
     leg.set_zorder(9999)
 
-    overlay_path = Path(path_resource.data_path) / "overlays"
-    fpath = overlay_path / f"{context.partition_key}.gpkg"
-    add_overlay(fpath, ax)
+    overlay_dir = (
+        Path(path_resource.data_path) / "overlays" / str(context.partition_key)
+    )
+    add_overlay(overlay_dir, ax=ax, config=overlay_config)
 
     return fig
 
@@ -117,6 +122,7 @@ def jobs_plot_factory(
     *,
     bounds_op: dg.OpDefinition,
     labels_op: dg.OpDefinition,
+    overlay_config_op: dg.OpDefinition,
     partitions_def: dg.PartitionsDefinition,
 ) -> dg.AssetsDefinition:
     @dg.graph_asset(
@@ -130,32 +136,17 @@ def jobs_plot_factory(
         lw = get_linewidth()
         bounds = bounds_op()
         labels = labels_op()
-        return plot_jobs(df_jobs, bounds, lw, labels)
+        overlay_config = overlay_config_op()
+        return plot_jobs(df_jobs, bounds, lw, labels, overlay_config)
 
     return _asset
 
-
-# pylint: disable=no-value-for-parameter
-# @dg.graph_asset(
-#     name="jobs",
-#     key_prefix="plot_trimmed",
-#     ins={
-#         "agebs": dg.AssetIn(["agebs_trimmed", "2020"]),
-#         "df_jobs": dg.AssetIn(["jobs", "reprojected"]),
-#     },
-#     partitions_def=zone_partitions,
-#     group_name="plot_trimmed",
-# )
-# def jobs_trimmed_plot(agebs: gpd.GeoDataFrame, df_jobs: gpd.GeoDataFrame) -> Figure:
-#     df = intersect_geometries(df_jobs, agebs)
-#     lw = get_linewidth()
-#     bounds = get_bounds_trimmed()
-#     return plot_jobs(df, bounds, lw)
 
 jobs_plot_zone = jobs_plot_factory(
     "zone",
     bounds_op=get_bounds_base,
     labels_op=get_labels_zone,
+    overlay_config_op=get_overlay_config_zone,
     partitions_def=zone_partitions,
 )
 jobs_plot_mun = jobs_plot_factory(
@@ -163,4 +154,5 @@ jobs_plot_mun = jobs_plot_factory(
     bounds_op=get_bounds_mun,
     labels_op=get_labels_mun,
     partitions_def=mun_partitions,
+    overlay_config_op=get_overlay_config_mun,
 )

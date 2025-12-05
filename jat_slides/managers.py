@@ -162,12 +162,17 @@ class ReprojectedRasterIOManager(RasterIOManager):
 
 
 class PresentationIOManager(BaseManager):
-    def handle_output(self, context: OutputContext, obj: Presentation):
+    def handle_output(self, context: OutputContext, obj: Presentation) -> None:
         fpath = self._get_path(context)
-        fpath.parent.mkdir(exist_ok=True, parents=True)
-        obj.save(fpath)
 
-    def load_input(self, context: InputContext):
+        if isinstance(fpath, dict):
+            err = "Saving multiple files is not implemented for PresentationIOManager."
+            raise NotImplementedError(err)
+
+        fpath.parent.mkdir(exist_ok=True, parents=True)
+        obj.save(str(fpath))
+
+    def load_input(self, context: InputContext) -> None:
         raise NotImplementedError
 
 
@@ -185,22 +190,25 @@ class PlotFigIOManager(BaseManager):
 
 
 class PathIOManager(BaseManager):
-    def handle_output(self, context: OutputContext, obj) -> None:
+    def handle_output(self, context: OutputContext, obj) -> None:  # noqa: ANN001
         raise NotImplementedError
 
     def load_input(self, context: InputContext) -> Path | dict[str, Path]:
-        path = self._get_path(context)
-        return path
+        return self._get_path(context)
 
 
 class TextIOManager(BaseManager):
-    def handle_output(self, context: OutputContext, obj) -> None:
+    def handle_output(self, context: OutputContext, obj: float) -> None:
         fpath = self._get_path(context)
+
+        if isinstance(fpath, dict):
+            err = "Saving multiple files is not implemented for TextIOManager."
+            raise NotImplementedError(err)
+
         fpath.parent.mkdir(exist_ok=True, parents=True)
 
-        with open(fpath, "w", encoding="utf8") as f:
-            obj = f"{obj:.10f}"
-            f.write(obj)
+        with fpath.open("w", encoding="utf8") as f:
+            f.write(f"{obj:.10f}")
 
     def load_input(
         self,
@@ -208,13 +216,13 @@ class TextIOManager(BaseManager):
     ) -> float | dict[str, float | None]:
         fpath = self._get_path(context)
         if isinstance(fpath, os.PathLike):
-            with open(fpath, encoding="utf8") as f:
+            with fpath.open(encoding="utf8") as f:
                 out = float(f.readline().strip("\n"))
         else:
             out = {}
             for key, subpath in fpath.items():
                 if subpath.exists():
-                    with open(subpath, encoding="utf8") as f:
+                    with subpath.open(encoding="utf8") as f:
                         out[key] = float(f.readline().strip("\n"))
                 else:
                     out[key] = None

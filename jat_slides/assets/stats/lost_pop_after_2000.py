@@ -9,10 +9,8 @@ def lost_pop_after_2000_factory(suffix: str) -> dg.AssetsDefinition:
         partitions_def = zone_partitions
     elif suffix == "mun":
         partitions_def = mun_partitions
-    elif suffix == "trimmed":
-        partitions_def = zone_partitions
     else:
-        err = f"Suffix {suffix} is not supported. Supported suffixes are 'zone', 'mun', and 'trimmed'."  # noqa: E501
+        err = f"Suffix {suffix} is not supported. Supported suffixes are 'zone' and 'mun'."  # noqa: E501
         raise ValueError(err)
 
     @dg.asset(
@@ -29,4 +27,4 @@ def lost_pop_after_2000_factory(suffix: str) -> dg.AssetsDefinition:
     return _asset
 
 
-dassets = [lost_pop_after_2000_factory(suffix) for suffix in ("zone", "mun", "trimmed")]
+dassets = [lost_pop_after_2000_factory(suffix) for suffix in ("zone", "mun")]

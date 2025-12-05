@@ -12,11 +12,12 @@ from jat_slides.assets.maps.common import (
     generate_figure,
     get_bounds_base,
     get_bounds_mun,
-    get_bounds_trimmed,
     get_cmap_bounds,
     get_labels_zone,
     get_legend_pos_base,
     get_linewidth,
+    get_overlay_config_mun,
+    get_overlay_config_zone,
 )
 from jat_slides.partitions import mun_partitions, zone_partitions
 from jat_slides.resources import PathResource
@@ -31,6 +32,7 @@ def plot_dataframe(
     lw: float,
     labels: dict[str, bool],
     legend_pos: str,
+    overlay_config: dict | None,
 ) -> Figure:
     state = int(context.partition_key.split(".")[0])
 
@@ -68,28 +70,22 @@ def plot_dataframe(
 
     add_pop_legend(cmap_bounds, ax=ax, cmap=cmap_rdbu, legend_pos=legend_pos)
 
-    overlay_path = Path(path_resource.data_path) / "overlays"
-    fpath = overlay_path / f"{context.partition_key}.gpkg"
-    add_overlay(fpath, ax)
+    overlay_dir = (
+        Path(path_resource.data_path) / "overlays" / str(context.partition_key)
+    )
+    add_overlay(overlay_dir, ax=ax, config=overlay_config)
 
     return fig
 
 
 # pylint: disable=no-value-for-parameter
-def population_grid_plot_factory(suffix: str) -> dg.AssetsDefinition:
-    if suffix == "zone":
-        op = get_bounds_base
-        partitions_def = zone_partitions
-    elif suffix == "mun":
-        op = get_bounds_mun
-        partitions_def = mun_partitions
-    elif suffix == "trimmed":
-        op = get_bounds_trimmed
-        partitions_def = zone_partitions
-    else:
-        err = f"Invalid suffix: {suffix}"
-        raise ValueError(err)
-
+def population_grid_plot_factory(
+    suffix: str,
+    *,
+    bounds_op: dg.OpDefinition,
+    overlay_config_op: dg.OpDefinition,
+    partitions_def: dg.PartitionsDefinition,
+) -> dg.AssetsDefinition:
     @dg.graph_asset(
         name="population_grid",
         key_prefix=f"plot_{suffix}",
@@ -98,16 +94,35 @@ def population_grid_plot_factory(suffix: str) -> dg.AssetsDefinition:
         group_name=f"plot_{suffix}",
     )
     def _asset(df: gpd.GeoDataFrame) -> Figure:
-        bounds = op()
+        bounds = bounds_op()
         lw = get_linewidth()
         labels = get_labels_zone()
         legend_pos = get_legend_pos_base()
+        overlay_config = overlay_config_op()
 
-        return plot_dataframe(bounds, df, lw, labels, legend_pos=legend_pos)
+        return plot_dataframe(
+            bounds,
+            df,
+            lw,
+            labels,
+            legend_pos=legend_pos,
+            overlay_config=overlay_config,
+        )
 
     return _asset
 
 
-dassets = [
-    population_grid_plot_factory(suffix) for suffix in ("zone", "mun", "trimmed")
-]
+population_grid_plot_zone = population_grid_plot_factory(
+    "zone",
+    partitions_def=zone_partitions,
+    bounds_op=get_bounds_base,
+    overlay_config_op=get_overlay_config_zone,
+)
+
+
+population_grid_plot_mun = population_grid_plot_factory(
+    "mun",
+    partitions_def=mun_partitions,
+    bounds_op=get_bounds_mun,
+    overlay_config_op=get_overlay_config_mun,
+)

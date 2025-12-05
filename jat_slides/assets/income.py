@@ -10,7 +10,7 @@ from jat_slides.resources import PathResource
 
 
 @dg.asset(
-    name="base",
+    name="zone",
     key_prefix="income",
     partitions_def=zone_partitions,
     io_manager_key="gpkg_manager",
@@ -22,7 +22,8 @@ def income(
 ) -> gpd.GeoDataFrame:
     segregation_path = Path(path_resource.segregation_path)
 
-    with open(segregation_path / "short_to_long_map.json", encoding="utf8") as f:
+    short_to_long_map_path = segregation_path / "short_to_long_map.json"
+    with short_to_long_map_path.open(encoding="utf8") as f:
         long_to_short_map = {value: key for key, value in json.load(f).items()}
 
     if context.partition_key in long_to_short_map:
@@ -40,7 +41,7 @@ def income(
 
 
 @dg.asset(
-    name="state",
+    name="mun",
     key_prefix="income",
     partitions_def=mun_partitions,
     io_manager_key="gpkg_manager",
@@ -65,4 +66,8 @@ def load_state_income_df(
         for path in income_path.glob(f"M{ent}*.gpkg")
     ]
 
-    return gpd.GeoDataFrame(pd.concat(df, ignore_index=True)).to_crs("EPSG:4326")
+    return (
+        gpd.GeoDataFrame(pd.concat(df, ignore_index=True))
+        .to_crs("EPSG:4326")
+        .query("cvegeo.str.startswith(@context.partition_key)")
+    )

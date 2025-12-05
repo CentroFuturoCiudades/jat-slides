@@ -29,3 +29,25 @@
 "19039" = "Monterrey"
 "19049" = "Santiago"
 "14120" = "Zapopan"
+
+
+[overlays]
+
+[overlays."19039"]
+
+[overlays."19039".BRTLines]
+linewidth = 1.5
+color = "#FF8C00"
+
+[overlays."19039".BRTLines.patheffects]
+linewidth = 4
+foreground = "k"
+
+
+[overlays."19039".metro]
+linewidth = 1.5
+color = "#228B22"
+
+[overlays."19039".metro.patheffects]
+linewidth = 4
+foreground = "k"

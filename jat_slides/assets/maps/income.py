@@ -10,13 +10,13 @@ from jat_slides.assets.maps.common import (
     generate_figure,
     get_bounds_base,
     get_bounds_mun,
-    get_bounds_trimmed,
     get_labels_mun,
     get_labels_zone,
     get_legend_pos_base,
     get_legend_pos_mun,
     get_linewidth,
-    intersect_geometries,
+    get_overlay_config_mun,
+    get_overlay_config_zone,
     update_categorical_legend,
 )
 from jat_slides.partitions import mun_partitions, zone_partitions
@@ -34,6 +34,7 @@ def plot_income(
     lw: float,
     labels: dict[str, bool],
     legend_pos: str,
+    overlay_config: dict | None,
 ) -> Figure:
     state = int(context.partition_key.split(".")[0])
 
@@ -81,59 +82,62 @@ def plot_income(
         legend_pos=legend_pos,
     )
 
-    overlay_path = Path(path_resource.data_path) / "overlays"
-    fpath = overlay_path / f"{context.partition_key}.gpkg"
-    add_overlay(fpath, ax)
+    overlay_dir = (
+        Path(path_resource.data_path) / "overlays" / str(context.partition_key)
+    )
+    add_overlay(overlay_dir, ax=ax, config=overlay_config)
 
     return fig
 
 
-@dg.graph_asset(
-    name="income",
-    key_prefix="plot_zone",
-    ins={"df": dg.AssetIn(key=["income", "base"])},
+def income_plot_factory(
+    level: str,
+    *,
+    bounds_op: dg.OpDefinition,
+    labels_op: dg.OpDefinition,
+    legend_pos_op: dg.OpDefinition,
+    overlay_config_op: dg.OpDefinition,
+    partitions_def: dg.PartitionsDefinition,
+) -> dg.AssetsDefinition:
+    @dg.graph_asset(
+        name="income",
+        key_prefix=f"plot_{level}",
+        ins={"df": dg.AssetIn(key=["income", level])},
+        partitions_def=partitions_def,
+        group_name=f"plot_{level}",
+    )
+    def _asset(df: gpd.GeoDataFrame) -> Figure:
+        lw = get_linewidth()
+        bounds = bounds_op()
+        labels = labels_op()
+        legend_pos = legend_pos_op()
+        overlay_config = overlay_config_op()
+        return plot_income(
+            df,
+            bounds,
+            lw,
+            labels,
+            legend_pos,
+            overlay_config=overlay_config,
+        )
+
+    return _asset
+
+
+income_plot_zone = income_plot_factory(
+    "zone",
+    bounds_op=get_bounds_base,
+    labels_op=get_labels_zone,
+    legend_pos_op=get_legend_pos_base,
+    overlay_config_op=get_overlay_config_zone,
     partitions_def=zone_partitions,
-    group_name="plot_zone",
 )
-def income_plot(df: gpd.GeoDataFrame) -> Figure:
-    lw = get_linewidth()
-    bounds = get_bounds_base()
-    labels = get_labels_zone()
-    legend_pos = get_legend_pos_base()
-    return plot_income(df, bounds, lw, labels, legend_pos)
 
-
-@dg.graph_asset(
-    name="income",
-    key_prefix="plot_mun",
-    ins={
-        "agebs_mun": dg.AssetIn(key=["muns", "2020"]),
-        "state_df": dg.AssetIn(key=["income", "state"]),
-    },
+income_plot_mun = income_plot_factory(
+    "mun",
+    bounds_op=get_bounds_mun,
+    labels_op=get_labels_mun,
+    legend_pos_op=get_legend_pos_mun,
+    overlay_config_op=get_overlay_config_mun,
     partitions_def=mun_partitions,
-    group_name="plot_mun",
 )
-def income_plot_mun(agebs_mun: gpd.GeoDataFrame, state_df: gpd.GeoDataFrame) -> Figure:
-    df = intersect_geometries(state_df, agebs_mun)
-    lw = get_linewidth()
-    bounds = get_bounds_mun()
-    labels = get_labels_mun()
-    legend_pos = get_legend_pos_mun()
-    return plot_income(df, bounds, lw, labels, legend_pos)
-
-
-@dg.graph_asset(
-    name="income",
-    key_prefix="plot_trimmed",
-    ins={
-        "agebs": dg.AssetIn(key=["agebs_trimmed", "2020"]),
-        "df": dg.AssetIn(key=["income", "base"]),
-    },
-    partitions_def=zone_partitions,
-    group_name="plot_trimmed",
-)
-def income_plot_trimmed(agebs: gpd.GeoDataFrame, df: gpd.GeoDataFrame) -> Figure:
-    lw = get_linewidth()
-    bounds = get_bounds_trimmed()
-    df = intersect_geometries(df, agebs)
-    return plot_income(df, bounds, lw)
