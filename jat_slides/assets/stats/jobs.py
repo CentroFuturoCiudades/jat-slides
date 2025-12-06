@@ -12,7 +12,7 @@ def total_jobs_factory(
     @dg.asset(
         name="total_jobs",
         key_prefix=f"stats_{level}",
-        ins={"df_jobs": dg.AssetIn([f"jobs_{level}", "reprojected"])},
+        ins={"df_jobs": dg.AssetIn(["jobs", level])},
         partitions_def=partitions_def,
         io_manager_key="text_manager",
         group_name=f"stats_{level}",

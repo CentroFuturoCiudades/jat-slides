@@ -13,7 +13,7 @@ from jat_slides.resources import PathResource
     key_prefix="cells",
     partitions_def=zone_partitions,
     io_manager_key="gpkg_manager",
-    group_name="cells_base",
+    group_name="cells_zone",
 )
 def cells_base(
     context: dg.AssetExecutionContext,

@@ -30,32 +30,37 @@ def jobs_reprojected_factory(
     level: str,
     *,
     partitions_def: dg.PartitionsDefinition,
+    unit_asset_key: list[str],
+    index_col: str,
 ) -> dg.AssetsDefinition:
     @dg.asset(
-        name="reprojected",
-        key_prefix=f"jobs_{level}",
+        name=level,
+        key_prefix="jobs",
         ins={
             "jobs": dg.AssetIn(["jobs", "geo"]),
-            "cells": dg.AssetIn(["cells", level]),
+            "units": dg.AssetIn(unit_asset_key),
         },
         partitions_def=partitions_def,
         io_manager_key="gpkg_manager",
     )
     def _asset(
         jobs: gpd.GeoDataFrame,
-        cells: gpd.GeoDataFrame,
+        units: gpd.GeoDataFrame,
     ) -> gpd.GeoDataFrame:
+        jobs = jobs.to_crs("EPSG:6372")
+        units = units.to_crs("EPSG:6372")
+
         joined = (
-            cells[["codigo", "geometry"]]
+            units[[index_col, "geometry"]]
             .sjoin(jobs, how="inner", predicate="contains")
             .drop(
                 columns=["index_right"],
             )
         )
-        job_count = joined.groupby("codigo")["num_empleos_esperados"].sum()
+        job_count = joined.groupby(index_col)["num_empleos_esperados"].sum()
 
         return (
-            cells.set_index("codigo")
+            units.set_index(index_col)
             .assign(jobs=job_count)
             .dropna(subset=["jobs"])
             .reset_index()
@@ -64,11 +69,23 @@ def jobs_reprojected_factory(
     return _asset
 
 
-dassets = [
-    jobs_reprojected_factory(level, partitions_def=partitions_def)
-    for level, partitions_def in zip(
-        ("zone", "mun"),
-        (zone_partitions, mun_partitions),
-        strict=False,
-    )
-]
+jobs_reprojected_zone = jobs_reprojected_factory(
+    "zone",
+    partitions_def=zone_partitions,
+    unit_asset_key=["cells", "zone"],
+    index_col="codigo",
+)
+
+jobs_reprojected_mun = jobs_reprojected_factory(
+    "mun",
+    partitions_def=mun_partitions,
+    unit_asset_key=["cells", "mun"],
+    index_col="codigo",
+)
+
+jobs_reprojected_ageb = jobs_reprojected_factory(
+    "ageb",
+    partitions_def=zone_partitions,
+    unit_asset_key=["agebs", "2020"],
+    index_col="CVEGEO",
+)

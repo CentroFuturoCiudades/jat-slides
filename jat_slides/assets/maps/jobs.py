@@ -128,7 +128,7 @@ def jobs_plot_factory(
     @dg.graph_asset(
         name="jobs",
         key_prefix=f"plot_{level}",
-        ins={"df_jobs": dg.AssetIn([f"jobs_{level}", "reprojected"])},
+        ins={"df_jobs": dg.AssetIn(["jobs", level])},
         partitions_def=partitions_def,
         group_name=f"plot_{level}",
     )
