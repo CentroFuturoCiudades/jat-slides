@@ -333,7 +333,10 @@ def get_overlay_config_op_factory(level: str) -> dg.OpDefinition:
             err = f"Resource '{level}_config_resource' not found in context.resources"
             raise ValueError(err)
 
-        if context.partition_key in config_resource.overlays:
+        if (
+            config_resource.overlays is not None
+            and context.partition_key in config_resource.overlays
+        ):
             return config_resource.overlays[context.partition_key]
 
         return None

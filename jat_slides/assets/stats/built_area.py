@@ -1,11 +1,9 @@
 from pathlib import Path
 
 import geopandas as gpd
-import numpy as np
 import pandas as pd
 import rasterio as rio
 import rasterio.mask as rio_mask
-from affine import Affine
 
 import dagster as dg
 from jat_slides.partitions import mun_partitions, zone_partitions
@@ -14,40 +12,25 @@ from jat_slides.resources import PathResource
 YEARS = (1990, 2000, 2010, 2020)
 
 
-def load_built_area_rasters_factory(year: int) -> dg.OpDefinition:
+def get_year_area_factory(year: int) -> dg.OpDefinition:
     @dg.op(
-        name=f"load_built_area_rasters_{year}",
-        out={"data": dg.Out(), "transform": dg.Out()},
+        name=f"get_year_area_{year}",
     )
     def _op(
         path_resource: PathResource,
         bounds: dict[int, list],
-    ) -> tuple[np.ndarray, Affine]:
-        fpath = Path(path_resource.ghsl_path) / f"BUILT_100/{year}.tif"
+    ) -> float:
+        fpath = Path(path_resource.ghsl_path) / "BUILT_100" / f"{year}.tif"
         with rio.open(fpath, nodata=65535) as ds:
-            data, transform = rio_mask.mask(ds, bounds[year], crop=True, nodata=0)
+            data, _ = rio_mask.mask(ds, bounds[year], crop=True, nodata=0)
 
         data[data == 65535] = 0
-        return data, transform
+        return float(data.sum())
 
     return _op
 
 
-load_built_area_rasters_ops = {
-    year: load_built_area_rasters_factory(year) for year in range(1975, 2021, 5)
-}
-
-
-# pylint: disable=unused-argument
-@dg.op(out=dg.Out(io_manager_key="csv_manager"))
-def reduce_area_rasters(
-    rasters: list[np.ndarray],
-    transforms: list[Affine],  # pyright: ignore[reportUnusedParameter]  # noqa: ARG001
-) -> pd.DataFrame:
-    out = []
-    for year, arr in zip(YEARS, rasters, strict=False):
-        out.append({"year": year, "area": arr.sum()})
-    return pd.DataFrame(out)
+get_year_area_ops = {year: get_year_area_factory(year) for year in range(1975, 2021, 5)}
 
 
 @dg.op
@@ -67,18 +50,13 @@ def get_bounds(
     return bounds
 
 
-@dg.op
-def concat_transforms_and_rasters(
-    bounds: dict[int, list],
-) -> tuple[list[np.ndarray], list[Affine]]:
-    rasters, transforms = [], []
-    for year in YEARS:
-        load_op = load_built_area_rasters_ops[year]
-        data, transform = load_op(bounds)
-        rasters.append(data)
-        transforms.append(transform)
-
-    return rasters, transforms
+@dg.op(out=dg.Out(io_manager_key="csv_manager"))
+def concat_areas(areas: list[float]) -> pd.DataFrame:
+    return (
+        pd.DataFrame([areas], index=["area"], columns=YEARS)
+        .transpose()
+        .reset_index(names="year")
+    )
 
 
 def built_area_factory(
@@ -103,8 +81,12 @@ def built_area_factory(
         agebs_2020: gpd.GeoDataFrame,
     ) -> pd.DataFrame:
         bounds = get_bounds(agebs_1990, agebs_2000, agebs_2010, agebs_2020)
-        rasters, transforms = concat_transforms_and_rasters(bounds)
-        return reduce_area_rasters(rasters, transforms)
+
+        areas = []
+        for year in YEARS:
+            area_op = get_year_area_ops[year]
+            areas.append(area_op(bounds))
+        return concat_areas(areas)
 
     return _asset
 
