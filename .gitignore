@@ -173,3 +173,4 @@ dagster/*
 .DS_Store
 *.ipynb
 *.gpkg
+!main.ipynb
