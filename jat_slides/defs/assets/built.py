@@ -6,10 +6,11 @@ import rasterio as rio
 import rasterio.mask as rio_mask
 import shapely
 from affine import Affine
+from dagster_components.partitions import zone_partitions
 
 import dagster as dg
-from jat_slides.partitions import mun_partitions, zone_partitions
-from jat_slides.resources import PathResource
+from jat_slides.defs.partitions import mun_partitions
+from jat_slides.defs.resources import PathResource
 
 YEARS = range(1975, 2021, 5)
 
@@ -19,7 +20,10 @@ def load_built_rasters_factory(year: int) -> dg.OpDefinition:
         name=f"load_built_rasters_{year}",
         out={"data": dg.Out(), "transform": dg.Out()},
     )
-    def _op(path_resource: PathResource, bounds: list) -> tuple[np.ndarray, Affine]:
+    def _op(
+        path_resource: PathResource,
+        bounds: list[shapely.Geometry],
+    ) -> tuple[np.ndarray, Affine]:
         fpath = Path(path_resource.ghsl_path) / "BUILT_100" / f"{year}.tif"
         with rio.open(fpath, nodata=65535) as ds:
             data, transform = rio_mask.mask(ds, bounds, crop=True, nodata=0)

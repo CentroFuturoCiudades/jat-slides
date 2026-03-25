@@ -8,6 +8,7 @@ dependencies = [
     "babel>=2.17.0",
     "contextily>=1.7.0",
     "dagster>=1.12.3",
+    "dagster-components",
     "dagster-dg-cli>=1.12.3",
     "dagster-webserver>=1.12.3",
     "geopandas>=1.1.1",
@@ -18,21 +19,19 @@ dependencies = [
     "numpy>=2.3.5",
     "pandas>=2.3.3",
     "pandas-stubs>=2.3.2.250926",
+    "psycopg2>=2.9.11",
     "python-pptx>=1.0.2",
     "rasterio>=1.4.3",
     "seaborn>=0.13.2",
     "shapely>=2.1.2",
+    "sqlalchemy>=2.0.48",
     "toml>=0.10.2",
     "types-geopandas>=1.1.1.20250829",
 ]
 
 [tool.ruff.lint]
 select = ["ALL"]
-ignore = ["D", "PLR2004", "COM812", "PLR0913", "C901", "ERA001"]
-
-[tool.basedpyright]
-typeCheckingMode = "standard"
-ignore = ["**/*.ipynb"]
+ignore = ["D", "PLR2004", "ERA001", "PLR0913", "COM812"]
 
 [tool.dg]
 directory_type = "project"
@@ -42,6 +41,9 @@ root_module = "jat_slides"
 registry_modules = [
     "jat_slides.definitions",
 ]
+
+[tool.uv.sources]
+dagster-components = { git = "https://github.com/RodolfoFigueroa/dagster-components" }
 
 [dependency-groups]
 dev = [

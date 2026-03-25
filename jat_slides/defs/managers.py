@@ -7,18 +7,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import rasterio as rio
+import rasterio.warp as rio_warp
 from affine import Affine
 from matplotlib.figure import Figure
 from pptx.presentation import Presentation
 
-import dagster as dg
 from dagster import (
     ConfigurableIOManager,
     InputContext,
     OutputContext,
     ResourceDependency,
 )
-from jat_slides.resources import PathResource, path_resource
+from jat_slides.defs.resources import PathResource
 
 
 class BaseManager(ConfigurableIOManager):
@@ -47,18 +47,20 @@ class BaseManager(ConfigurableIOManager):
 
         return final_path
 
+    def _get_single_path(self, context: InputContext | OutputContext) -> Path:
+        path = self._get_path(context)
+        if isinstance(path, dict):
+            err = "Multiple paths found. Use _get_path instead of _get_single_path."
+            raise TypeError(err)
+        return path
+
 
 class DataFrameIOManager(BaseManager):
     def _is_geodataframe(self) -> bool:
         return self.extension in (".gpkg", ".geojson")
 
     def handle_output(self, context: OutputContext, obj: gpd.GeoDataFrame) -> None:
-        out_path = self._get_path(context)
-
-        if isinstance(out_path, dict):
-            err = "Saving multiple files is not implemented for DataFrameIOManager."
-            raise NotImplementedError(err)
-
+        out_path = self._get_single_path(context)
         out_path.parent.mkdir(exist_ok=True, parents=True)
 
         if self._is_geodataframe():
@@ -66,15 +68,18 @@ class DataFrameIOManager(BaseManager):
         else:
             obj.to_csv(out_path, index=False)
 
-    def load_input(self, context: InputContext) -> gpd.GeoDataFrame | pd.DataFrame:
+    def load_input(
+        self, context: InputContext
+    ) -> pd.DataFrame | dict[str, pd.DataFrame | None]:
         path = self._get_path(context)
-        if isinstance(path, os.PathLike):
+
+        if isinstance(path, Path):
             if self._is_geodataframe():
                 return gpd.read_file(path)
             return pd.read_csv(path)
 
         if isinstance(path, dict):
-            out_dict = {}
+            out_dict: dict[str, pd.DataFrame | None] = {}
             for key, fpath in path.items():
                 if fpath.exists():
                     if self._is_geodataframe():
@@ -85,8 +90,7 @@ class DataFrameIOManager(BaseManager):
                     out_dict[key] = None
             return out_dict
 
-        err = "Loading multiple files is not implemented for DataFrameIOManager."
-        raise NotImplementedError(err)
+        assert_never(type(path))
 
 
 class RasterIOManager(BaseManager):
@@ -101,7 +105,7 @@ class RasterIOManager(BaseManager):
         context: OutputContext,
         obj: tuple[np.ndarray, Affine],
     ) -> None:
-        fpath = self._get_path(context)
+        fpath = self._get_single_path(context)
         fpath.parent.mkdir(exist_ok=True, parents=True)
 
         arr, transform = obj
@@ -119,14 +123,16 @@ class RasterIOManager(BaseManager):
         ) as ds:
             ds.write(arr, 1)
 
-    def load_input(self, context: InputContext) -> tuple[np.ndarray, Affine]:
+    def load_input(
+        self, context: InputContext
+    ) -> tuple[np.ndarray, Affine] | dict[str, tuple[np.ndarray, Affine]]:
         path = self._get_path(context)
-        if isinstance(path, os.PathLike):
+        if isinstance(path, Path):
             data, transform = self._get_raster_and_transform(path)
             return data, transform
 
         if isinstance(path, dict):
-            out_dict = {}
+            out_dict: dict[str, tuple[np.ndarray, Affine]] = {}
             for key, fpath in path.items():
                 out_dict[key] = self._get_raster_and_transform(fpath)
             return out_dict
@@ -139,7 +145,7 @@ class ReprojectedRasterIOManager(RasterIOManager):
 
     def _get_raster_and_transform(self, fpath: Path) -> tuple[np.ndarray, Affine]:
         with rio.open(fpath) as ds:
-            transform, width, height = rio.warp.calculate_default_transform(
+            transform, width, height = rio_warp.calculate_default_transform(
                 ds.crs,
                 self.crs,
                 ds.width,
@@ -163,12 +169,7 @@ class ReprojectedRasterIOManager(RasterIOManager):
 
 class PresentationIOManager(BaseManager):
     def handle_output(self, context: OutputContext, obj: Presentation) -> None:
-        fpath = self._get_path(context)
-
-        if isinstance(fpath, dict):
-            err = "Saving multiple files is not implemented for PresentationIOManager."
-            raise NotImplementedError(err)
-
+        fpath = self._get_single_path(context)
         fpath.parent.mkdir(exist_ok=True, parents=True)
         obj.save(str(fpath))
 
@@ -178,7 +179,7 @@ class PresentationIOManager(BaseManager):
 
 class PlotFigIOManager(BaseManager):
     def handle_output(self, context: OutputContext, obj: Figure) -> None:
-        fpath = self._get_path(context)
+        fpath = self._get_single_path(context)
         fpath.parent.mkdir(exist_ok=True, parents=True)
 
         obj.savefig(fpath, dpi=250)
@@ -199,12 +200,7 @@ class PathIOManager(BaseManager):
 
 class TextIOManager(BaseManager):
     def handle_output(self, context: OutputContext, obj: float) -> None:
-        fpath = self._get_path(context)
-
-        if isinstance(fpath, dict):
-            err = "Saving multiple files is not implemented for TextIOManager."
-            raise NotImplementedError(err)
-
+        fpath = self._get_single_path(context)
         fpath.parent.mkdir(exist_ok=True, parents=True)
 
         with fpath.open("w", encoding="utf8") as f:
@@ -214,7 +210,7 @@ class TextIOManager(BaseManager):
         self,
         context: InputContext,
     ) -> float | dict[str, float | None]:
-        fpath = self._get_path(context)
+        fpath = self._get_single_path(context)
         if isinstance(fpath, os.PathLike):
             with fpath.open(encoding="utf8") as f:
                 out = float(f.readline().strip("\n"))
@@ -227,38 +223,3 @@ class TextIOManager(BaseManager):
                 else:
                     out[key] = None
         return out
-
-
-# Init
-
-csv_manager = DataFrameIOManager(path_resource=path_resource, extension=".csv")
-gpkg_manager = DataFrameIOManager(path_resource=path_resource, extension=".gpkg")
-memory_manager = dg.InMemoryIOManager()
-raster_manager = RasterIOManager(path_resource=path_resource, extension=".tif")
-reprojected_raster_manager = ReprojectedRasterIOManager(
-    path_resource=path_resource,
-    extension=".tif",
-    crs="EPSG:4326",
-)
-presentation_manger = PresentationIOManager(
-    path_resource=path_resource,
-    extension=".pptx",
-)
-plot_manager = PlotFigIOManager(path_resource=path_resource, extension=".jpg")
-path_manager = PathIOManager(path_resource=path_resource, extension=".jpg")
-text_manager = TextIOManager(path_resource=path_resource, extension=".txt")
-
-
-defs = dg.Definitions(
-    resources={
-        "csv_manager": csv_manager,
-        "gpkg_manager": gpkg_manager,
-        "memory_manager": memory_manager,
-        "presentation_manager": presentation_manger,
-        "raster_manager": raster_manager,
-        "reprojected_raster_manager": reprojected_raster_manager,
-        "plot_manager": plot_manager,
-        "path_manager": path_manager,
-        "text_manager": text_manager,
-    },
-)

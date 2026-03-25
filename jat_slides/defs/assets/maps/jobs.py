@@ -6,11 +6,13 @@ import jenkspy
 import matplotlib as mpl
 import numpy as np
 import pandas as pd
+from dagster_components.partitions import zone_partitions
+from dagster_components.resources import PostGISResource
 from matplotlib.figure import Figure
 from matplotlib.legend import Legend
 
 import dagster as dg
-from jat_slides.assets.maps.common import (
+from jat_slides.defs.assets.maps.common import (
     add_overlay,
     generate_figure,
     get_bounds_base,
@@ -21,8 +23,8 @@ from jat_slides.assets.maps.common import (
     get_overlay_config_mun,
     get_overlay_config_zone,
 )
-from jat_slides.partitions import mun_partitions, zone_partitions
-from jat_slides.resources import PathResource
+from jat_slides.defs.partitions import mun_partitions
+from jat_slides.defs.resources import PathResource
 
 
 def add_categorical_column(
@@ -30,7 +32,7 @@ def add_categorical_column(
     column: str,
     bins: int,
 ) -> tuple[gpd.GeoDataFrame, dict[int, str]]:
-    breaks_orig = jenkspy.jenks_breaks(df[column], bins)  # pyright: ignore[reportArgumentType]
+    breaks_orig = jenkspy.jenks_breaks(df[column].to_numpy(), bins)  # pyright: ignore[reportArgumentType]
     breaks_middle = np.round(np.array(breaks_orig[1:-1]) / 100) * 100
 
     start = np.floor(breaks_orig[0] / 100) * 100
@@ -58,14 +60,13 @@ def replace_categorical_legend(legend: Legend, label_map: dict[int, str]) -> Non
 def plot_jobs(
     context: dg.OpExecutionContext,
     path_resource: PathResource,
+    postgis_resource: PostGISResource,
     df: gpd.GeoDataFrame,
     bounds: tuple[float, float, float, float],
     lw: float,
     labels: dict[str, bool],
     overlay_config: dict | None,
 ) -> Figure:
-    state = int(context.partition_key.split(".")[0])
-
     cmap = mpl.colormaps["YlGn"]
 
     df = df.to_crs("EPSG:4326")
@@ -85,8 +86,8 @@ def plot_jobs(
         },
         mun_poly_kwargs={"linewidth": 0.3, "alpha": 0.2},
         state_text_kwargs={"fontsize": 7, "color": "#006400", "alpha": 0.9},
-        state=state,
         population_grids_path=path_resource.pg_path,
+        postgis_resource=postgis_resource,
     )
     df.plot(
         column="category",
@@ -94,7 +95,7 @@ def plot_jobs(
         categorical=True,
         cmap=cmap,
         ax=ax,
-        edgecolor="k",
+        edgecolor="k",  # ty:ignore[invalid-argument-type]
         lw=lw,
         autolim=False,
         aspect=None,

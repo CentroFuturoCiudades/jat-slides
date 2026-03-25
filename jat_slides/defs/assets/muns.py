@@ -4,8 +4,8 @@ import geopandas as gpd
 import pandas as pd
 
 import dagster as dg
-from jat_slides.partitions import mun_partitions
-from jat_slides.resources import PathResource
+from jat_slides.defs.partitions import mun_partitions
+from jat_slides.defs.resources import PathResource
 
 
 def muns_factory(year: int) -> dg.AssetsDefinition:

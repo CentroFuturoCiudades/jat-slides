@@ -1,7 +1,8 @@
 import geopandas as gpd
+from dagster_components.partitions import zone_partitions
 
 import dagster as dg
-from jat_slides.partitions import mun_partitions, zone_partitions
+from jat_slides.defs.partitions import mun_partitions
 
 
 def lost_pop_after_2000_factory(suffix: str) -> dg.AssetsDefinition:

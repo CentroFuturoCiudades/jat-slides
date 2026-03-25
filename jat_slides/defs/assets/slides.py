@@ -1,22 +1,23 @@
 import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, overload
 from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
 from babel.dates import format_date
+from dagster_components.partitions import zone_partitions
 from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.presentation import Presentation as PresentationType
 from pptx.shapes.autoshape import Shape
-from pptx.shapes.base import BaseShape
+from pptx.shapes.placeholder import PicturePlaceholder, TablePlaceholder
 from pptx.shapes.shapetree import SlideShapes
 from pptx.slide import SlideLayout
 from pptx.util import Cm, Pt
 
 import dagster as dg
-from jat_slides.partitions import mun_partitions, zone_partitions
+from jat_slides.defs.partitions import mun_partitions
 
 if TYPE_CHECKING:
     from pptx.text.text import TextFrame
@@ -42,15 +43,38 @@ def find_layouts(pres: PresentationType) -> dict:
     return layouts
 
 
-def find_shape(shapes: SlideShapes, prefix: str) -> BaseShape:
+@overload
+def find_shape(shapes: SlideShapes, prefix: str, kind: Literal["shape"]) -> Shape: ...
+@overload
+def find_shape(
+    shapes: SlideShapes, prefix: str, kind: Literal["picture"]
+) -> PicturePlaceholder: ...
+@overload
+def find_shape(
+    shapes: SlideShapes, prefix: str, kind: Literal["table"]
+) -> TablePlaceholder: ...
+
+
+def find_shape(
+    shapes: SlideShapes, prefix: str, kind: Literal["shape", "picture", "table"]
+) -> Shape | PicturePlaceholder | TablePlaceholder:
+    type_map = {
+        "shape": Shape,
+        "picture": PicturePlaceholder,
+        "table": TablePlaceholder,
+    }
     for shape in shapes:
         if shape.name.startswith(prefix):
+            if not isinstance(shape, type_map[kind]):
+                err = (
+                    "Shape with prefix '{prefix}' is not of type "
+                    f"{type_map[kind].__name__}."
+                )
+                raise TypeError(err)
             return shape
 
     err = f"Shape with prefix '{prefix}' not found in the slide shapes."
-    raise ValueError(
-        err,
-    )
+    raise ValueError(err)
 
 
 def add_title_slide(pres: PresentationType, title_layout: SlideLayout) -> None:
@@ -133,10 +157,12 @@ def add_picture_with_highlight_slide(
 ) -> None:
     pop_slide = pres.slides.add_slide(layout)
 
-    title_shape = find_shape(pop_slide.shapes, prefix="Text Placeholder 2")
+    title_shape = find_shape(
+        pop_slide.shapes, prefix="Text Placeholder 2", kind="shape"
+    )
     add_normal_text_to_shape(title_shape, title)
 
-    text_shape = find_shape(pop_slide.shapes, prefix="Text Placeholder 3")
+    text_shape = find_shape(pop_slide.shapes, prefix="Text Placeholder 3", kind="shape")
     add_highlighted_text_to_frame(
         text_shape,
         text_left=text_left,
@@ -145,11 +171,10 @@ def add_picture_with_highlight_slide(
         color=color,
     )
 
-    figure_shape = find_shape(pop_slide.shapes, prefix="Picture")
+    figure_shape = find_shape(pop_slide.shapes, prefix="Picture", kind="picture")
     figure_shape.insert_picture(str(picture_path))
 
 
-# pylint: disable=protected-access
 def add_built_slide(
     pres: PresentationType,
     layout: SlideLayout,
@@ -174,10 +199,14 @@ def add_built_slide(
 
     built_slide = pres.slides.add_slide(layout)
 
-    title_shape = find_shape(built_slide.shapes, prefix="Text Placeholder 2")
+    title_shape = find_shape(
+        built_slide.shapes, prefix="Text Placeholder 2", kind="shape"
+    )
     add_normal_text_to_shape(title_shape, "Dinámica de urbanización 2000 a 2020")
 
-    text_shape = find_shape(built_slide.shapes, prefix="Text Placeholder 3")
+    text_shape = find_shape(
+        built_slide.shapes, prefix="Text Placeholder 3", kind="shape"
+    )
     add_highlighted_text_to_frame(
         text_shape,
         text_left="El ",
@@ -186,7 +215,7 @@ def add_built_slide(
         color=RGB_BLUE,
     )
 
-    table_shape = find_shape(built_slide.shapes, prefix="Table")
+    table_shape = find_shape(built_slide.shapes, prefix="Table", kind="table")
     table_frame = table_shape.insert_table(rows=4, cols=4)
     table = table_frame.table
 
@@ -244,7 +273,7 @@ def add_built_slide(
                 run.font.color.rgb = RGB_BLUE
 
     if picture_path.exists():
-        figure_shape = find_shape(built_slide.shapes, prefix="Picture")
+        figure_shape = find_shape(built_slide.shapes, prefix="Picture", kind="picture")
         figure_shape.insert_picture(str(picture_path))
 
 
@@ -257,11 +286,11 @@ def add_single_picture_slide(
 ) -> None:
     slide = pres.slides.add_slide(layout)
 
-    title_shape = find_shape(slide.shapes, prefix="Text")
+    title_shape = find_shape(slide.shapes, prefix="Text", kind="shape")
     add_normal_text_to_shape(title_shape, title)
 
     if picture_path.exists():
-        figure_shape = find_shape(slide.shapes, prefix="Picture")
+        figure_shape = find_shape(slide.shapes, prefix="Picture", kind="picture")
         figure_shape.insert_picture(str(picture_path))
 
 

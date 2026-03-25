@@ -4,10 +4,11 @@ import geopandas as gpd
 import pandas as pd
 import rasterio as rio
 import rasterio.mask as rio_mask
+from dagster_components.partitions import zone_partitions
 
 import dagster as dg
-from jat_slides.partitions import mun_partitions, zone_partitions
-from jat_slides.resources import PathResource
+from jat_slides.defs.partitions import mun_partitions
+from jat_slides.defs.resources import PathResource
 
 YEARS = (1990, 2000, 2010, 2020)
 
@@ -60,7 +61,10 @@ def concat_areas(areas: list[float]) -> pd.DataFrame:
 
 
 def built_area_factory(
-    suffix: str, *, prefix: str, partitions_def: dg.PartitionsDefinition
+    suffix: str,
+    *,
+    prefix: str,
+    partitions_def: dg.PartitionsDefinition,
 ) -> dg.AssetsDefinition:
     @dg.graph_asset(
         ins={
@@ -92,6 +96,8 @@ def built_area_factory(
 
 
 built_area_zone = built_area_factory(
-    "zone", prefix="agebs", partitions_def=zone_partitions
+    "zone",
+    prefix="agebs",
+    partitions_def=zone_partitions,
 )
 built_area_mun = built_area_factory("mun", prefix="muns", partitions_def=mun_partitions)

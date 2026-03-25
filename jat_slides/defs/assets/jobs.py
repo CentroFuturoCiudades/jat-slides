@@ -2,13 +2,19 @@ from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
+from dagster_components.partitions import zone_partitions
 
 import dagster as dg
-from jat_slides.partitions import mun_partitions, zone_partitions
-from jat_slides.resources import PathResource
+from jat_slides.defs.partitions import mun_partitions
+from jat_slides.defs.resources import PathResource
 
 
-@dg.asset(name="geo", key_prefix="jobs", io_manager_key="gpkg_manager")
+@dg.asset(
+    name="geo",
+    key_prefix="jobs",
+    io_manager_key="gpkg_manager",
+    group_name="jobs",
+)
 def jobs_geo(path_resource: PathResource) -> gpd.GeoDataFrame:
     jobs_path = Path(path_resource.jobs_path) / "denue_2023_estimaciones.csv"
 
@@ -42,6 +48,7 @@ def jobs_reprojected_factory(
         },
         partitions_def=partitions_def,
         io_manager_key="gpkg_manager",
+        group_name="jobs",
     )
     def _asset(
         jobs: gpd.GeoDataFrame,

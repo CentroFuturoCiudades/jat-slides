@@ -1,5 +1,6 @@
 import itertools
 import os
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Literal
 
@@ -9,14 +10,14 @@ import matplotlib.colors as mcol
 import matplotlib.patheffects as mpe
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import shapely
+from dagster_components.resources import PostGISResource
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.patches import Patch
 
 import dagster as dg
-from jat_slides.resources import (
+from jat_slides.defs.resources import (
     ConfigResource,
 )
 
@@ -27,9 +28,11 @@ cmap_rdbu = mcol.LinearSegmentedColormap.from_list(
 )
 
 
-def get_cmap_bounds(differences: np.ndarray, n_steps: int) -> np.ndarray:
-    pos_step = differences.max() / n_steps
-    neg_step = differences.min() / n_steps
+def get_cmap_bounds(differences: Sequence[float], n_steps: int) -> np.ndarray:
+    diff_arr = np.array(differences)
+
+    pos_step = diff_arr.max() / n_steps
+    neg_step = diff_arr.min() / n_steps
 
     return np.array(
         [neg_step * i for i in range(1, n_steps + 1)][::-1]
@@ -78,16 +81,15 @@ def process_default_args(default_args: dict, kwargs: dict | None) -> dict:
 
 
 def add_polygon_bounds(
-    path: os.PathLike,
-    census_path: os.PathLike,
     *,
+    level: Literal["ent", "mun"],
     xmin: float,
     ymin: float,
     xmax: float,
     ymax: float,
     ax: Axes,
     add_labels: bool,
-    label_level: Literal["state", "mun"] | None = None,
+    postgis_resource: PostGISResource,
     poly_kwargs: dict | None = None,
     text_kwargs: dict | None = None,
 ) -> None:
@@ -109,13 +111,41 @@ def add_polygon_bounds(
     poly_kwargs = process_default_args(default_poly_kwargs, poly_kwargs)
     text_kwargs = process_default_args(default_text_kwargs, text_kwargs)
 
-    df_mun = gpd.read_file(path).to_crs("EPSG:4326").set_index("CVEGEO")
-    bbox = shapely.box(xmin, ymin, xmax, ymax)
-    df_mun = df_mun[df_mun.intersects(bbox)]
+    if level == "ent":
+        name_col = "NOM_ENT"
+    elif level == "mun":
+        name_col = "NOM_MUN"
 
-    if not isinstance(df_mun, gpd.GeoDataFrame):
-        err = "df_mun must be a GeoDataFrame"
-        raise TypeError(err)
+    with postgis_resource.connect() as conn:
+        df_mun = (
+            gpd.read_postgis(
+                f"""
+            SELECT
+                census_2020_{level}."CVEGEO",
+                census_2020_{level}.geometry,
+                census_2020_{level}."{name_col}"
+            FROM census_2020_{level}
+            WHERE ST_Intersects(
+                census_2020_{level}.geometry,
+                ST_Transform(
+                    ST_MakeEnvelope(%(xmin)s, %(ymin)s, %(xmax)s, %(ymax)s, 4326),
+                    6372
+                )
+            )
+            """,  # noqa: S608
+                conn,
+                params={
+                    "xmin": xmin,
+                    "ymin": ymin,
+                    "xmax": xmax,
+                    "ymax": ymax,
+                },
+                geom_col="geometry",
+            )
+            .to_crs("EPSG:4326")
+            .set_index("CVEGEO")
+            .rename(columns={name_col: "name"})
+        )
 
     df_mun.plot(
         ax=ax,
@@ -123,57 +153,18 @@ def add_polygon_bounds(
     )
 
     if add_labels:
-        if label_level is None:
-            err = "label_level must be 'state' or 'mun' if add_labels is True"
+        if level is None:
+            err = "level must be 'ent' or 'mun' if add_labels is True"
             raise ValueError(err)
 
-        if label_level == "state":
-            usecols = ["ENTIDAD", "NOM_ENT"]
-            name_col = "NOM_ENT"
-        elif label_level == "mun":
-            usecols = ["ENTIDAD", "MUN", "NOM_MUN"]
-            name_col = "NOM_MUN"
-        else:
-            err = f"label_level must be 'state' or 'mun', got {label_level}"
-            raise ValueError(err)
-
-        df_name = (
-            pd.read_csv(census_path, usecols=usecols)
-            .assign(CVEGEO="")
-            .rename(columns={name_col: "name"})
-        )
-
-        if "ENTIDAD" in usecols:
-            df_name = df_name.assign(
-                CVEGEO=lambda df: df["CVEGEO"] + df["ENTIDAD"].astype(str).str.zfill(2),
-            )
-        if "MUN" in usecols:
-            df_name = df_name.assign(
-                CVEGEO=lambda df: df["CVEGEO"] + df["MUN"].astype(str).str.zfill(3),
-            )
-
-        df_name = (
-            df_name.drop(columns=["ENTIDAD", "MUN"], errors="ignore")
-            .drop_duplicates(subset=["CVEGEO"])
-            .set_index("CVEGEO")
-        )
-
-        df_mun_trimmed = (
-            df_mun[["geometry"]]
-            .join(df_name, how="inner")
-            .copy()
-            .assign(
-                geometry=lambda df: df["geometry"].intersection(bbox),
-                coords=lambda df: df["geometry"].apply(
-                    lambda x: x.representative_point().coords[:],
-                ),
-            )
-        )
-        df_mun_trimmed["coords"] = [c[0] for c in df_mun_trimmed["coords"]]
-
-        df_mun_trimmed["name"] = df_mun_trimmed["name"].replace(
-            {"México": "Estado de México"},
-        )
+        bbox = shapely.box(xmin, ymin, xmax, ymax)
+        df_mun_trimmed = df_mun.assign(
+            geometry=lambda df: df["geometry"].intersection(bbox),
+            coords=lambda df: df["geometry"].apply(
+                lambda x: x.representative_point().coords[:],
+            ),
+            name=lambda df: df["name"].replace({"México": "Estado de México"}),
+        ).assign(coords=lambda df: df["coords"].apply(lambda x: x[0]))
 
         for _, row in df_mun_trimmed.iterrows():
             text = row["name"]
@@ -200,6 +191,7 @@ def generate_figure(
     xmax: float,
     ymax: float,
     *,
+    postgis_resource: PostGISResource,
     add_mun_bounds: bool = False,
     add_mun_labels: bool = False,
     add_state_bounds: bool = False,
@@ -208,7 +200,6 @@ def generate_figure(
     state_text_kwargs: dict | None = None,
     mun_poly_kwargs: dict | None = None,
     mun_text_kwargs: dict | None = None,
-    state: int | None = None,
     population_grids_path: os.PathLike | str | None = None,
 ) -> tuple[Figure, Axes]:
     fig, ax = plt.subplots(figsize=(8, 4.5))
@@ -222,7 +213,7 @@ def generate_figure(
     fig.subplots_adjust(right=1)
     fig.subplots_adjust(left=0)
 
-    cx.add_basemap(ax, source=cx.providers.CartoDB.PositronNoLabels, crs="EPSG:4326")  # pyright: ignore[reportAttributeAccessIssue]
+    cx.add_basemap(ax, source=cx.providers.CartoDB.PositronNoLabels, crs="EPSG:4326")  # ty:ignore[unresolved-attribute]
 
     if add_mun_bounds:
         if population_grids_path is None:
@@ -231,15 +222,6 @@ def generate_figure(
 
         population_grids_path = Path(population_grids_path)
         add_polygon_bounds(
-            Path(population_grids_path / "final" / "framework" / "mun" / "2020.gpkg"),
-            Path(
-                population_grids_path
-                / "initial"
-                / "census"
-                / "INEGI"
-                / "2020"
-                / f"conjunto_de_datos_ageb_urbana_{str(state).zfill(2)}_cpv2020.csv",
-            ),
             xmin=xmin,
             ymin=ymin,
             xmax=xmax,
@@ -248,7 +230,8 @@ def generate_figure(
             add_labels=add_mun_labels,
             poly_kwargs=mun_poly_kwargs,
             text_kwargs=mun_text_kwargs,
-            label_level="mun",
+            level="mun",
+            postgis_resource=postgis_resource,
         )
 
     if add_state_bounds:
@@ -259,15 +242,6 @@ def generate_figure(
         population_grids_path = Path(population_grids_path)
 
         add_polygon_bounds(
-            Path(population_grids_path / "final" / "framework" / "state" / "2020.gpkg"),
-            Path(
-                population_grids_path
-                / "initial"
-                / "census"
-                / "INEGI"
-                / "2020"
-                / f"conjunto_de_datos_ageb_urbana_{str(state).zfill(2)}_cpv2020.csv",
-            ),
             xmin=xmin,
             ymin=ymin,
             xmax=xmax,
@@ -276,7 +250,8 @@ def generate_figure(
             add_labels=add_state_labels,
             poly_kwargs=state_poly_kwargs,
             text_kwargs=state_text_kwargs,
-            label_level="state",
+            level="ent",
+            postgis_resource=postgis_resource,
         )
 
     return fig, ax
@@ -450,12 +425,13 @@ def add_overlay(overlay_dir: Path, *, ax: Axes, config: dict | None) -> None:
     if overlay_dir.exists():
         for fpath in overlay_dir.glob("*.gpkg"):
             if config is None:
-                subconfig = {"linewidth": 3, "color": "k", "add_points": False}
+                subconfig: dict = {"linewidth": 3, "color": "k", "add_points": False}
             else:
-                subconfig = config[fpath.stem]
+                subconfig: dict = config[fpath.stem]
 
             if "patheffects" in subconfig:
                 path_effects = subconfig.pop("patheffects")
+
                 subconfig["path_effects"] = [
                     mpe.Stroke(
                         linewidth=path_effects["linewidth"],
