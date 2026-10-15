@@ -1,56 +1,56 @@
-import json
 from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
-from dagster_components.partitions import zone_partitions
+from cfc_dagster_utils.partitions import zone_partitions
+from cfc_dagster_utils.resources import PostgresResource
 
 import dagster as dg
 from jat_slides.defs.partitions import mun_partitions
-from jat_slides.defs.resources import PathResource
 
 
 @dg.asset(
-    name="zone",
-    key_prefix="income",
+    key=["income", "zone"],
     partitions_def=zone_partitions,
-    io_manager_key="gpkg_manager",
+    io_manager_key="geodataframe_manager",
     group_name="income",
 )
-def income(
-    context: dg.AssetExecutionContext,
-    path_resource: PathResource,
+def income_zone(
+    context: dg.AssetExecutionContext, postgis_resource: PostgresResource
 ) -> gpd.GeoDataFrame:
-    segregation_path = Path(path_resource.segregation_path)
+    zone = context.partition_key
 
-    short_to_long_map_path = segregation_path / "short_to_long_map.json"
-    with short_to_long_map_path.open(encoding="utf8") as f:
-        long_to_short_map = {value: key for key, value in json.load(f).items()}
-
-    if context.partition_key in long_to_short_map:
+    with postgis_resource.connect() as conn:
         return (
-            gpd.read_file(
-                segregation_path
-                / "incomes"
-                / f"{long_to_short_map[context.partition_key]}.gpkg",
+            gpd.read_postgis(
+                """
+            SELECT income_2020.income_pc, census_2020_ageb.geometry
+                FROM income_2020
+            INNER JOIN census_2020_ageb
+                ON census_2020_ageb.cvegeo = income_2020.cvegeo
+            INNER JOIN census_2020_mun
+                ON census_2020_ageb.cve_mun = census_2020_mun.cvegeo
+            WHERE census_2020_mun.cve_met = %(zone)s
+            """,
+                conn,
+                params={"zone": zone},
+                geom_col="geometry",
             )
-            .dropna(subset=["income_pc"])
             .to_crs("EPSG:4326")
+            .assign(geometry=lambda df: df["geometry"].make_valid())
         )
-
-    return gpd.GeoDataFrame(geometry=[])
 
 
 @dg.asset(
     name="mun",
     key_prefix="income",
     partitions_def=mun_partitions,
-    io_manager_key="gpkg_manager",
+    io_manager_key="geodataframe_manager",
     group_name="income_mun",
 )
 def load_state_income_df(
     context: dg.OpExecutionContext,
-    path_resource: PathResource,
+    postgis_resource: PostgresResource,
 ) -> gpd.GeoDataFrame:
     if len(context.partition_key) == 4:
         ent = f"0{context.partition_key[0]}"

@@ -13,7 +13,8 @@ def muns_factory(year: int) -> dg.AssetsDefinition:
         name=str(year),
         key_prefix="muns",
         partitions_def=mun_partitions,
-        io_manager_key="gpkg_manager",
+        io_manager_key="geodataframe_manager",
+        group_name="muns",
     )
     def _asset(
         context: dg.AssetExecutionContext,

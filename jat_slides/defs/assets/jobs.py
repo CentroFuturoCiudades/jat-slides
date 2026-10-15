@@ -2,7 +2,7 @@ from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
-from dagster_components.partitions import zone_partitions
+from cfc_dagster_utils.partitions import zone_partitions
 
 import dagster as dg
 from jat_slides.defs.partitions import mun_partitions
@@ -12,7 +12,7 @@ from jat_slides.defs.resources import PathResource
 @dg.asset(
     name="geo",
     key_prefix="jobs",
-    io_manager_key="gpkg_manager",
+    io_manager_key="geodataframe_manager",
     group_name="jobs",
 )
 def jobs_geo(path_resource: PathResource) -> gpd.GeoDataFrame:
@@ -47,7 +47,7 @@ def jobs_reprojected_factory(
             "units": dg.AssetIn(unit_asset_key),
         },
         partitions_def=partitions_def,
-        io_manager_key="gpkg_manager",
+        io_manager_key="geodataframe_manager",
         group_name="jobs",
     )
     def _asset(

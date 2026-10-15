@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 import numpy as np
 import pandas as pd
 from babel.dates import format_date
-from dagster_components.partitions import zone_partitions
+from cfc_dagster_utils.partitions import zone_partitions
 from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.presentation import Presentation as PresentationType
@@ -144,7 +144,7 @@ def add_normal_text_to_shape(shape: Shape, text: str) -> None:
     run.text = text
 
 
-def add_picture_with_highlight_slide(
+def add_picture_with_highlight_slide(  # noqa: PLR0913
     pres: PresentationType,
     layout: SlideLayout,
     *,
@@ -175,7 +175,7 @@ def add_picture_with_highlight_slide(
     figure_shape.insert_picture(str(picture_path))
 
 
-def add_built_slide(
+def add_built_slide(  # noqa: PLR0913
     pres: PresentationType,
     layout: SlideLayout,
     built_after_frac: float,
@@ -294,7 +294,7 @@ def add_single_picture_slide(
         figure_shape.insert_picture(str(picture_path))
 
 
-def generate_single_slide(
+def generate_single_slide(  # noqa: PLR0913
     *,
     name: str,
     lost_pop_after_2000: float,
@@ -397,7 +397,7 @@ def slides_factory(
         group_name=f"slides_{level}",
         required_resource_keys={f"{level}_config_resource"},
     )
-    def _asset(
+    def _asset(  # noqa: PLR0913, PLR0917
         context: dg.AssetExecutionContext,
         lost_pop_after_2000: float,
         built_after_2000: float,

@@ -2,10 +2,8 @@ import os
 from pathlib import Path
 from typing import assert_never
 
-import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import rasterio as rio
 import rasterio.warp as rio_warp
 from affine import Affine
@@ -29,7 +27,7 @@ class BaseManager(ConfigurableIOManager):
         self,
         context: InputContext | OutputContext,
     ) -> Path | dict[str, Path]:
-        out_path = Path(self.path_resource.data_path) / "generated"
+        out_path = Path(self.path_resource.out_path)
         fpath = out_path / "/".join(context.asset_key.path)
 
         if context.has_asset_partitions:
@@ -53,44 +51,6 @@ class BaseManager(ConfigurableIOManager):
             err = "Multiple paths found. Use _get_path instead of _get_single_path."
             raise TypeError(err)
         return path
-
-
-class DataFrameIOManager(BaseManager):
-    def _is_geodataframe(self) -> bool:
-        return self.extension in (".gpkg", ".geojson")
-
-    def handle_output(self, context: OutputContext, obj: gpd.GeoDataFrame) -> None:
-        out_path = self._get_single_path(context)
-        out_path.parent.mkdir(exist_ok=True, parents=True)
-
-        if self._is_geodataframe():
-            obj.to_file(out_path, mode="w")
-        else:
-            obj.to_csv(out_path, index=False)
-
-    def load_input(
-        self, context: InputContext
-    ) -> pd.DataFrame | dict[str, pd.DataFrame | None]:
-        path = self._get_path(context)
-
-        if isinstance(path, Path):
-            if self._is_geodataframe():
-                return gpd.read_file(path)
-            return pd.read_csv(path)
-
-        if isinstance(path, dict):
-            out_dict: dict[str, pd.DataFrame | None] = {}
-            for key, fpath in path.items():
-                if fpath.exists():
-                    if self._is_geodataframe():
-                        out_dict[key] = gpd.read_file(fpath)
-                    else:
-                        out_dict[key] = pd.read_csv(fpath)
-                else:
-                    out_dict[key] = None
-            return out_dict
-
-        assert_never(type(path))
 
 
 class RasterIOManager(BaseManager):

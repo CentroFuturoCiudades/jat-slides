@@ -1,0 +1,2 @@
+['remote "azure_remote"']
+    url = azure://jat-slides

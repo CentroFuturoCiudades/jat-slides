@@ -4,8 +4,8 @@ import matplotlib as mpl
 import numpy as np
 import rasterio.plot as rio_plot
 from affine import Affine
-from dagster_components.partitions import zone_partitions
-from dagster_components.resources import PostGISResource
+from cfc_dagster_utils.partitions import zone_partitions
+from cfc_dagster_utils.resources import PostgresResource
 from matplotlib.axes import Axes
 from matplotlib.colors import Colormap
 from matplotlib.figure import Figure
@@ -52,10 +52,10 @@ def add_built_legend(cmap: Colormap, *, ax: Axes, loc: str | None) -> None:
     ins={"data_and_transform": dg.In(input_manager_key="reprojected_raster_manager")},
     out=dg.Out(io_manager_key="plot_manager"),
 )
-def plot_raster(
+def plot_raster(  # noqa: PLR0913, PLR0917
     context: dg.OpExecutionContext,
     path_resource: PathResource,
-    postgis_resource: PostGISResource,
+    postgis_resource: PostgresResource,
     bounds: tuple[float, float, float, float],
     data_and_transform: tuple[np.ndarray, Affine],
     labels: dict[str, bool],
@@ -97,7 +97,7 @@ def plot_raster(
     return fig
 
 
-def built_plot_factory(
+def built_plot_factory(  # noqa: PLR0913
     level: str,
     *,
     bounds_op: dg.OpDefinition,

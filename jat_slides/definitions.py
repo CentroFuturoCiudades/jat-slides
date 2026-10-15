@@ -1,11 +1,12 @@
 from pathlib import Path
 
 import toml
-from dagster_components.resources import PostGISResource
+from cfc_dagster_utils.managers.dataframe import DataFrameFileManager
+from cfc_dagster_utils.managers.geodataframe import GeoDataFrameFileManager
+from cfc_dagster_utils.resources import PostgresResource
 
 import dagster as dg
 from jat_slides.defs.managers import (
-    DataFrameIOManager,
     PathIOManager,
     PlotFigIOManager,
     PresentationIOManager,
@@ -18,15 +19,14 @@ from jat_slides.defs.resources import ConfigResource, PathResource
 
 @dg.definitions
 def definitions() -> dg.Definitions:
-    main_defs = dg.load_from_defs_folder(project_root=Path(__file__).parent.parent)
+    project_root = Path(__file__).parent.parent
+
+    main_defs = dg.load_from_defs_folder(project_root=project_root)
 
     # Resources
+    data_path = project_root / "data"
     path_resource = PathResource(
-        ghsl_path=dg.EnvVar("GHSL_PATH"),
-        pg_path=dg.EnvVar("POPULATION_GRIDS_PATH"),
-        segregation_path=dg.EnvVar("SEGREGATION_PATH"),
-        jobs_path=dg.EnvVar("JOBS_PATH"),
-        data_path=dg.EnvVar("DATA_PATH"),
+        in_path=str(data_path / "input"), out_path=str(data_path / "output")
     )
 
     zone_config_path = Path("./config/zone.toml")
@@ -55,17 +55,15 @@ def definitions() -> dg.Definitions:
         overlays=config.get("overlays"),
     )
 
-    postgis_resource = PostGISResource(
+    postgis_resource = PostgresResource(
         host=dg.EnvVar("POSTGRES_HOST"),
         port=dg.EnvVar("POSTGRES_PORT"),
         user=dg.EnvVar("POSTGRES_USER"),
         password=dg.EnvVar("POSTGRES_PASSWORD"),
-        db=dg.EnvVar("POSTGRES_DATABASE"),
+        db=dg.EnvVar("POSTGRES_DB"),
     )
 
     # Managers
-    csv_manager = DataFrameIOManager(path_resource=path_resource, extension=".csv")
-    gpkg_manager = DataFrameIOManager(path_resource=path_resource, extension=".gpkg")
     memory_manager = dg.InMemoryIOManager()
     raster_manager = RasterIOManager(path_resource=path_resource, extension=".tif")
     reprojected_raster_manager = ReprojectedRasterIOManager(
@@ -87,8 +85,12 @@ def definitions() -> dg.Definitions:
             "path_resource": path_resource,
             "zone_config_resource": zone_config,
             "mun_config_resource": mun_config,
-            "csv_manager": csv_manager,
-            "gpkg_manager": gpkg_manager,
+            "dataframe_manager": DataFrameFileManager(
+                path_resource=path_resource, extension=".parquet"
+            ),
+            "geodataframe_manager": GeoDataFrameFileManager(
+                path_resource=path_resource, extension=".geoparquet"
+            ),
             "memory_manager": memory_manager,
             "presentation_manager": presentation_manger,
             "raster_manager": raster_manager,

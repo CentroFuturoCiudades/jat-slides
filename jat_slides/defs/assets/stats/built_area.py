@@ -4,7 +4,7 @@ import geopandas as gpd
 import pandas as pd
 import rasterio as rio
 import rasterio.mask as rio_mask
-from dagster_components.partitions import zone_partitions
+from cfc_dagster_utils.partitions import zone_partitions
 
 import dagster as dg
 from jat_slides.defs.partitions import mun_partitions
@@ -51,7 +51,7 @@ def get_bounds(
     return bounds
 
 
-@dg.op(out=dg.Out(io_manager_key="csv_manager"))
+@dg.op(out=dg.Out(io_manager_key="dataframe_manager"))
 def concat_areas(areas: list[float]) -> pd.DataFrame:
     return (
         pd.DataFrame([areas], index=["area"], columns=YEARS)

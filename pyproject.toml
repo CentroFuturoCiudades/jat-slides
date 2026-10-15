@@ -8,7 +8,7 @@ dependencies = [
     "babel>=2.17.0",
     "contextily>=1.7.0",
     "dagster>=1.12.3",
-    "dagster-components",
+    "cfc-dagster-utils>=0.4.1",
     "dagster-dg-cli>=1.12.3",
     "dagster-webserver>=1.12.3",
     "geopandas>=1.1.1",
@@ -27,25 +27,30 @@ dependencies = [
     "sqlalchemy>=2.0.48",
     "toml>=0.10.2",
     "types-geopandas>=1.1.1.20250829",
+    "pyarrow>=25.0.0",
 ]
 
 [tool.ruff.lint]
 select = ["ALL"]
-ignore = ["D", "PLR2004", "ERA001", "PLR0913", "COM812"]
+ignore = ["D", "COM812", "CPY001", "ERA001", "PLR2004"]
+per-file-ignores = { "*.ipynb" = ["PLR0913"] }
 
 [tool.dg]
 directory_type = "project"
 
 [tool.dg.project]
 root_module = "jat_slides"
-registry_modules = [
-    "jat_slides.definitions",
-]
+registry_modules = ["jat_slides.definitions"]
 
 [tool.uv.sources]
-dagster-components = { git = "https://github.com/RodolfoFigueroa/dagster-components" }
+cfc-dagster-utils = { git = "https://github.com/RodolfoFigueroa/cfc-dagster-utils" }
 
 [dependency-groups]
 dev = [
+    "dvc[azure]>=3.67.1",
     "pre-commit>=4.5.0",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.16.1",
+    "ty>=0.0.67",
 ]

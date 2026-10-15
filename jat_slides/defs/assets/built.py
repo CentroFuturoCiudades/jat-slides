@@ -6,7 +6,7 @@ import rasterio as rio
 import rasterio.mask as rio_mask
 import shapely
 from affine import Affine
-from dagster_components.partitions import zone_partitions
+from cfc_dagster_utils.partitions import zone_partitions
 
 import dagster as dg
 from jat_slides.defs.partitions import mun_partitions
@@ -109,7 +109,7 @@ def built(
     agebs_2010: gpd.GeoDataFrame,
     agebs_2020: gpd.GeoDataFrame,
 ) -> tuple[np.ndarray, Affine]:
-    return built_graph(agebs_1990, agebs_2000, agebs_2010, agebs_2020)  # type: ignore[return-value]
+    return built_graph(agebs_1990, agebs_2000, agebs_2010, agebs_2020)  # ty: ignore[invalid-return-type]
 
 
 @dg.graph_asset(
@@ -129,4 +129,4 @@ def built_mun(
     agebs_2010: gpd.GeoDataFrame,
     agebs_2020: gpd.GeoDataFrame,
 ) -> tuple[np.ndarray, Affine]:
-    return built_graph(agebs_1990, agebs_2000, agebs_2010, agebs_2020)  # type: ignore[return-value]
+    return built_graph(agebs_1990, agebs_2000, agebs_2010, agebs_2020)  # ty: ignore[invalid-return-type]

@@ -1,5 +1,5 @@
 import geopandas as gpd
-from dagster_components.partitions import zone_partitions
+from cfc_dagster_utils.partitions import zone_partitions
 
 import dagster as dg
 from jat_slides.defs.partitions import mun_partitions

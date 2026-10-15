@@ -2,7 +2,7 @@ from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
-from dagster_components.partitions import zone_partitions
+from cfc_dagster_utils.partitions import zone_partitions
 
 import dagster as dg
 from jat_slides.defs.partitions import mun_partitions
@@ -13,7 +13,7 @@ from jat_slides.defs.resources import PathResource
     name="zone",
     key_prefix="cells",
     partitions_def=zone_partitions,
-    io_manager_key="gpkg_manager",
+    io_manager_key="geodataframe_manager",
     group_name="cells_zone",
 )
 def cells_base(
@@ -35,7 +35,7 @@ def cells_base(
     key_prefix="cells",
     ins={"agebs": dg.AssetIn(["muns", "2020"])},
     partitions_def=mun_partitions,
-    io_manager_key="gpkg_manager",
+    io_manager_key="geodataframe_manager",
     group_name="cells_mun",
 )
 def cells_mun(

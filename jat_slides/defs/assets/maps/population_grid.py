@@ -2,8 +2,8 @@ from pathlib import Path
 
 import geopandas as gpd
 import matplotlib.colors as mcol
-from dagster_components.partitions import zone_partitions
-from dagster_components.resources import PostGISResource
+from cfc_dagster_utils.partitions import zone_partitions
+from cfc_dagster_utils.resources import PostgresResource
 from matplotlib.figure import Figure
 
 import dagster as dg
@@ -26,10 +26,10 @@ from jat_slides.defs.resources import PathResource
 
 
 @dg.op(out=dg.Out(io_manager_key="plot_manager"))
-def plot_dataframe(
+def plot_dataframe(  # noqa: PLR0913, PLR0917
     context: dg.OpExecutionContext,
     path_resource: PathResource,
-    postgis_resource: PostGISResource,
+    postgis_resource: PostgresResource,
     bounds: tuple[float, float, float, float],
     df: gpd.GeoDataFrame,
     lw: float,

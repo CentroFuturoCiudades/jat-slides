@@ -1,6 +1,6 @@
 import geopandas as gpd
 import pandas as pd
-from dagster_components.partitions import zone_partitions
+from cfc_dagster_utils.partitions import zone_partitions
 
 import dagster as dg
 from jat_slides.defs.partitions import mun_partitions
@@ -41,7 +41,7 @@ def built_urban_area_factory(
         },
         partitions_def=partitions_def,
         group_name=f"stats_{suffix}",
-        io_manager_key="csv_manager",
+        io_manager_key="dataframe_manager",
     )
     def _asset(
         agebs_1990: gpd.GeoDataFrame,

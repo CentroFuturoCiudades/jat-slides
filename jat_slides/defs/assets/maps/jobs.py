@@ -6,8 +6,8 @@ import jenkspy
 import matplotlib as mpl
 import numpy as np
 import pandas as pd
-from dagster_components.partitions import zone_partitions
-from dagster_components.resources import PostGISResource
+from cfc_dagster_utils.partitions import zone_partitions
+from cfc_dagster_utils.resources import PostgresResource
 from matplotlib.figure import Figure
 from matplotlib.legend import Legend
 
@@ -57,10 +57,10 @@ def replace_categorical_legend(legend: Legend, label_map: dict[int, str]) -> Non
 
 
 @dg.op(out=dg.Out(io_manager_key="plot_manager"))
-def plot_jobs(
+def plot_jobs(  # noqa: PLR0913, PLR0917
     context: dg.OpExecutionContext,
     path_resource: PathResource,
-    postgis_resource: PostGISResource,
+    postgis_resource: PostgresResource,
     df: gpd.GeoDataFrame,
     bounds: tuple[float, float, float, float],
     lw: float,

@@ -1,6 +1,6 @@
 import geopandas as gpd
-from dagster_components.partitions import zone_partitions
-from dagster_components.resources import PostGISResource
+from cfc_dagster_utils.partitions import zone_partitions
+from cfc_dagster_utils.resources import PostgresResource
 
 import dagster as dg
 
@@ -10,12 +10,12 @@ def agebs_factory(year: int) -> dg.AssetsDefinition:
         name=str(year),
         key_prefix="agebs",
         partitions_def=zone_partitions,
-        io_manager_key="gpkg_manager",
+        io_manager_key="geodataframe_manager",
         group_name="agebs",
     )
     def _asset(
         context: dg.AssetExecutionContext,
-        postgis_resource: PostGISResource,
+        postgis_resource: PostgresResource,
     ) -> gpd.GeoDataFrame:
         zone = context.partition_key
 
@@ -23,11 +23,11 @@ def agebs_factory(year: int) -> dg.AssetsDefinition:
             return (
                 gpd.read_postgis(
                     """
-                SELECT census_2020_ageb.geometry, census_2020_ageb."POBTOT"
+                SELECT census_2020_ageb.pobtot, census_2020_ageb.geometry
                     FROM census_2020_ageb
                 INNER JOIN census_2020_mun
-                    ON census_2020_ageb."CVE_MUN" = census_2020_mun."CVEGEO"
-                WHERE census_2020_mun."CVE_MET" = %(zone)s
+                    ON census_2020_ageb.cve_mun = census_2020_mun.cvegeo
+                WHERE census_2020_mun.cve_met = %(zone)s
                 """,
                     conn,
                     params={"zone": zone},

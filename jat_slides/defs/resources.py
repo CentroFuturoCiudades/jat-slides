@@ -2,11 +2,8 @@ from dagster import ConfigurableResource
 
 
 class PathResource(ConfigurableResource):
-    pg_path: str
-    ghsl_path: str
-    segregation_path: str
-    jobs_path: str
-    data_path: str
+    in_path: str
+    out_path: str
 
 
 class ZonesListResource(ConfigurableResource):

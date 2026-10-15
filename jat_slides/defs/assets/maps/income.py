@@ -2,8 +2,8 @@ from pathlib import Path
 
 import geopandas as gpd
 import matplotlib as mpl
-from dagster_components.partitions import zone_partitions
-from dagster_components.resources import PostGISResource
+from cfc_dagster_utils.partitions import zone_partitions
+from cfc_dagster_utils.resources import PostgresResource
 from matplotlib.figure import Figure
 
 import dagster as dg
@@ -28,10 +28,10 @@ from jat_slides.defs.resources import (
 
 
 @dg.op(out=dg.Out(io_manager_key="plot_manager"))
-def plot_income(
+def plot_income(  # noqa: PLR0913, PLR0917
     context: dg.OpExecutionContext,
     path_resource: PathResource,
-    postgis_resource: PostGISResource,
+    postgis_resource: PostgresResource,
     df: gpd.GeoDataFrame,
     bounds: tuple[float, float, float, float],
     lw: float,
@@ -42,7 +42,7 @@ def plot_income(
     cmap = mpl.colormaps["RdBu"]
 
     fig, ax = generate_figure(
-        *bounds,
+        bounds,
         add_mun_bounds=True,
         add_mun_labels=labels["mun"],
         add_state_bounds=False,
@@ -55,7 +55,6 @@ def plot_income(
         },
         mun_poly_kwargs={"linewidth": 0.3, "alpha": 0.2},
         state_text_kwargs={"fontsize": 7, "color": "#006400", "alpha": 0.9},
-        population_grids_path=path_resource.pg_path,
         postgis_resource=postgis_resource,
     )
 
@@ -77,21 +76,19 @@ def plot_income(
 
     update_categorical_legend(
         ax,
-        title="Ingreso anual per cápita\n(miles de USD)",
-        fmt=".2f",
+        title="Ingreso trimestral per cápita\n(pesos mexicanos)",
+        fmt=",.0f",
         cmap=cmap,
         legend_pos=legend_pos,
     )
 
-    overlay_dir = (
-        Path(path_resource.data_path) / "overlays" / str(context.partition_key)
-    )
+    overlay_dir = Path(path_resource.in_path) / "overlays" / str(context.partition_key)
     add_overlay(overlay_dir, ax=ax, config=overlay_config)
 
     return fig
 
 
-def income_plot_factory(
+def income_plot_factory(  # noqa: PLR0913
     level: str,
     *,
     bounds_op: dg.OpDefinition,

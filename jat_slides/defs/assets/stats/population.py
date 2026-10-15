@@ -1,6 +1,6 @@
 import geopandas as gpd
 import pandas as pd
-from dagster_components.partitions import zone_partitions
+from cfc_dagster_utils.partitions import zone_partitions
 
 import dagster as dg
 from jat_slides.defs.partitions import mun_partitions
@@ -39,7 +39,7 @@ def population_factory(
         name="population",
         key_prefix=f"stats_{suffix}",
         partitions_def=partitions_def,
-        io_manager_key="csv_manager",
+        io_manager_key="dataframe_manager",
         group_name=f"stats_{suffix}",
     )
     def _asset(

@@ -1,5 +1,4 @@
 import itertools
-import os
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Literal
@@ -11,7 +10,7 @@ import matplotlib.patheffects as mpe
 import matplotlib.pyplot as plt
 import numpy as np
 import shapely
-from dagster_components.resources import PostGISResource
+from cfc_dagster_utils.resources import PostgresResource
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.patches import Patch
@@ -65,7 +64,7 @@ def add_pop_legend(
         alignment="left",
         framealpha=1,
         loc=legend_pos,
-    ).set_zorder(9999)
+    ).set_zorder(9999)  # ty: ignore[no-matching-overload]
 
 
 def process_default_args(default_args: dict, kwargs: dict | None) -> dict:
@@ -80,16 +79,13 @@ def process_default_args(default_args: dict, kwargs: dict | None) -> dict:
     return kwargs
 
 
-def add_polygon_bounds(
+def add_polygon_bounds(  # noqa: PLR0913
+    bounds: tuple[float, float, float, float],
     *,
     level: Literal["ent", "mun"],
-    xmin: float,
-    ymin: float,
-    xmax: float,
-    ymax: float,
     ax: Axes,
     add_labels: bool,
-    postgis_resource: PostGISResource,
+    postgis_resource: PostgresResource,
     poly_kwargs: dict | None = None,
     text_kwargs: dict | None = None,
 ) -> None:
@@ -112,16 +108,16 @@ def add_polygon_bounds(
     text_kwargs = process_default_args(default_text_kwargs, text_kwargs)
 
     if level == "ent":
-        name_col = "NOM_ENT"
+        name_col = "nom_ent"
     elif level == "mun":
-        name_col = "NOM_MUN"
+        name_col = "nom_mun"
 
     with postgis_resource.connect() as conn:
         df_mun = (
             gpd.read_postgis(
                 f"""
             SELECT
-                census_2020_{level}."CVEGEO",
+                census_2020_{level}.cvegeo,
                 census_2020_{level}.geometry,
                 census_2020_{level}."{name_col}"
             FROM census_2020_{level}
@@ -135,15 +131,15 @@ def add_polygon_bounds(
             """,  # noqa: S608
                 conn,
                 params={
-                    "xmin": xmin,
-                    "ymin": ymin,
-                    "xmax": xmax,
-                    "ymax": ymax,
+                    "xmin": bounds[0],
+                    "ymin": bounds[1],
+                    "xmax": bounds[2],
+                    "ymax": bounds[3],
                 },
                 geom_col="geometry",
             )
             .to_crs("EPSG:4326")
-            .set_index("CVEGEO")
+            .set_index("cvegeo")
             .rename(columns={name_col: "name"})
         )
 
@@ -153,11 +149,7 @@ def add_polygon_bounds(
     )
 
     if add_labels:
-        if level is None:
-            err = "level must be 'ent' or 'mun' if add_labels is True"
-            raise ValueError(err)
-
-        bbox = shapely.box(xmin, ymin, xmax, ymax)
+        bbox = shapely.box(*bounds)
         df_mun_trimmed = df_mun.assign(
             geometry=lambda df: df["geometry"].intersection(bbox),
             coords=lambda df: df["geometry"].apply(
@@ -185,13 +177,10 @@ def add_polygon_bounds(
             )
 
 
-def generate_figure(
-    xmin: float,
-    ymin: float,
-    xmax: float,
-    ymax: float,
+def generate_figure(  # noqa: PLR0913
+    bounds: tuple[float, float, float, float],
     *,
-    postgis_resource: PostGISResource,
+    postgis_resource: PostgresResource,
     add_mun_bounds: bool = False,
     add_mun_labels: bool = False,
     add_state_bounds: bool = False,
@@ -200,13 +189,12 @@ def generate_figure(
     state_text_kwargs: dict | None = None,
     mun_poly_kwargs: dict | None = None,
     mun_text_kwargs: dict | None = None,
-    population_grids_path: os.PathLike | str | None = None,
 ) -> tuple[Figure, Axes]:
     fig, ax = plt.subplots(figsize=(8, 4.5))
     ax.axis("off")
 
-    ax.set_xlim(xmin, xmax)
-    ax.set_ylim(ymin, ymax)
+    ax.set_xlim(bounds[0], bounds[2])
+    ax.set_ylim(bounds[1], bounds[3])
 
     fig.subplots_adjust(bottom=0)
     fig.subplots_adjust(top=1)
@@ -216,16 +204,8 @@ def generate_figure(
     cx.add_basemap(ax, source=cx.providers.CartoDB.PositronNoLabels, crs="EPSG:4326")  # ty:ignore[unresolved-attribute]
 
     if add_mun_bounds:
-        if population_grids_path is None:
-            err = "population_grids_path must be provided if add_mun_bounds is True"
-            raise ValueError(err)
-
-        population_grids_path = Path(population_grids_path)
         add_polygon_bounds(
-            xmin=xmin,
-            ymin=ymin,
-            xmax=xmax,
-            ymax=ymax,
+            bounds,
             ax=ax,
             add_labels=add_mun_labels,
             poly_kwargs=mun_poly_kwargs,
@@ -235,17 +215,8 @@ def generate_figure(
         )
 
     if add_state_bounds:
-        if population_grids_path is None:
-            err = "population_grids_path must be provided if add_state_bounds is True"
-            raise ValueError(err)
-
-        population_grids_path = Path(population_grids_path)
-
         add_polygon_bounds(
-            xmin=xmin,
-            ymin=ymin,
-            xmax=xmax,
-            ymax=ymax,
+            bounds,
             ax=ax,
             add_labels=add_state_labels,
             poly_kwargs=state_poly_kwargs,
@@ -391,7 +362,7 @@ def update_categorical_legend(
         alignment="left",
         framealpha=1,
         loc=legend_pos,
-    ).set_zorder(9999)
+    ).set_zorder(9999)  # ty: ignore[no-matching-overload]
 
 
 @dg.op
