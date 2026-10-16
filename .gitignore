@@ -175,6 +175,3 @@ dagster/*
 *.gpkg
 !main.ipynb
 !temp.ipynb
-
-# Extra
-data/output

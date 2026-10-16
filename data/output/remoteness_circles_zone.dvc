@@ -1,0 +1,6 @@
+outs:
+- md5: 9762eb03e5bf90e4ce04c4404b38dfb6.dir
+  size: 1742495
+  nfiles: 69
+  hash: md5
+  path: remoteness_circles_zone

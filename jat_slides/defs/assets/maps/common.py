@@ -46,6 +46,7 @@ def add_pop_legend(
     ax: Axes,
     cmap: mcol.Colormap,
     legend_pos: str = "upper right",
+    start_year: int = 2000,
 ) -> None:
     cmap = cmap.resampled(7)
 
@@ -60,7 +61,7 @@ def add_pop_legend(
 
     ax.legend(
         handles=patches,
-        title="Cambio de población\n(2020 - 2000)",
+        title=f"Cambio de población\n(2020 - {start_year})",
         alignment="left",
         framealpha=1,
         loc=legend_pos,
@@ -201,7 +202,7 @@ def generate_figure(  # noqa: PLR0913
     fig.subplots_adjust(right=1)
     fig.subplots_adjust(left=0)
 
-    cx.add_basemap(ax, source=cx.providers.CartoDB.PositronNoLabels, crs="EPSG:4326")  # ty:ignore[unresolved-attribute]
+    cx.add_basemap(ax, source=cx.providers.Esri.WorldGrayCanvas, crs="EPSG:4326")  # ty: ignore[unresolved-attribute]
 
     if add_mun_bounds:
         add_polygon_bounds(
@@ -413,6 +414,21 @@ def add_overlay(overlay_dir: Path, *, ax: Axes, config: dict | None) -> None:
 
             geom = gpd.read_file(fpath).to_crs("EPSG:4326")["geometry"]
             geom.plot(ax=ax, **subconfig)
+
+
+def add_remoteness_circles(circles: gpd.GeoDataFrame | None, *, ax: Axes) -> None:
+    if circles is None:
+        return
+    circles.plot(
+        ax=ax,
+        color=["black"] * len(circles),
+        linewidth=1,
+        zorder=9998,
+        aspect=None,
+        autolim=False,
+        clip_on=True,
+        path_effects=[mpe.Stroke(linewidth=2.5, foreground="white"), mpe.Normal()],
+    )
 
 
 get_bounds_base = get_bounds_op_factory("zone")

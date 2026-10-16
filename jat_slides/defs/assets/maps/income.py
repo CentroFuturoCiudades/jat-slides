@@ -9,6 +9,7 @@ from matplotlib.figure import Figure
 import dagster as dg
 from jat_slides.defs.assets.maps.common import (
     add_overlay,
+    add_remoteness_circles,
     generate_figure,
     get_bounds_base,
     get_bounds_mun,
@@ -38,6 +39,7 @@ def plot_income(  # noqa: PLR0913, PLR0917
     labels: dict[str, bool],
     legend_pos: str,
     overlay_config: dict | None,
+    circles: gpd.GeoDataFrame | None = None,
 ) -> Figure:
     cmap = mpl.colormaps["RdBu"]
 
@@ -59,6 +61,7 @@ def plot_income(  # noqa: PLR0913, PLR0917
     )
 
     if len(df) == 0:
+        add_remoteness_circles(circles, ax=ax)
         return fig
 
     df.plot(
@@ -85,6 +88,7 @@ def plot_income(  # noqa: PLR0913, PLR0917
     overlay_dir = Path(path_resource.in_path) / "overlays" / str(context.partition_key)
     add_overlay(overlay_dir, ax=ax, config=overlay_config)
 
+    add_remoteness_circles(circles, ax=ax)
     return fig
 
 
@@ -97,14 +101,7 @@ def income_plot_factory(  # noqa: PLR0913
     overlay_config_op: dg.OpDefinition,
     partitions_def: dg.PartitionsDefinition,
 ) -> dg.AssetsDefinition:
-    @dg.graph_asset(
-        name="income",
-        key_prefix=f"plot_{level}",
-        ins={"df": dg.AssetIn(key=["income", level])},
-        partitions_def=partitions_def,
-        group_name=f"plot_{level}",
-    )
-    def _asset(df: gpd.GeoDataFrame) -> Figure:
+    def _asset(df: gpd.GeoDataFrame, circles: gpd.GeoDataFrame | None = None) -> Figure:
         lw = get_linewidth()
         bounds = bounds_op()
         labels = labels_op()
@@ -117,9 +114,37 @@ def income_plot_factory(  # noqa: PLR0913
             labels,
             legend_pos,
             overlay_config=overlay_config,
+            **({"circles": circles} if circles is not None else {}),
         )
 
-    return _asset
+    if level == "zone":
+
+        @dg.graph_asset(
+            name="income",
+            key_prefix=f"plot_{level}",
+            ins={
+                "circles": dg.AssetIn("remoteness_circles_zone"),
+                "df": dg.AssetIn(key=["income", level]),
+            },
+            partitions_def=partitions_def,
+            group_name=f"plot_{level}",
+        )
+        def _zone_asset(df: gpd.GeoDataFrame, circles: gpd.GeoDataFrame) -> Figure:
+            return _asset(df, circles)
+
+        return _zone_asset
+
+    @dg.graph_asset(
+        name="income",
+        key_prefix=f"plot_{level}",
+        ins={"df": dg.AssetIn(key=["income", level])},
+        partitions_def=partitions_def,
+        group_name=f"plot_{level}",
+    )
+    def _mun_asset(df: gpd.GeoDataFrame) -> Figure:
+        return _asset(df)
+
+    return _mun_asset
 
 
 income_plot_zone = income_plot_factory(

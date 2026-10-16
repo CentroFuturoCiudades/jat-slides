@@ -29,6 +29,7 @@ def definitions() -> dg.Definitions:
         in_path=str(data_path / "input"),
         out_path=str(data_path / "output"),
         pg_path=dg.EnvVar("PG_PATH"),
+        job_estimation_path=dg.EnvVar("JOB_ESTIMATION_PATH"),
     )
 
     zone_config_path = Path("./config/zone.toml")

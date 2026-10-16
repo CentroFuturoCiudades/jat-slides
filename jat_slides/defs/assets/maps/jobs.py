@@ -1,5 +1,4 @@
 import itertools
-from pathlib import Path
 
 import geopandas as gpd
 import jenkspy
@@ -13,7 +12,7 @@ from matplotlib.legend import Legend
 
 import dagster as dg
 from jat_slides.defs.assets.maps.common import (
-    add_overlay,
+    add_remoteness_circles,
     generate_figure,
     get_bounds_base,
     get_bounds_mun,
@@ -32,7 +31,7 @@ def add_categorical_column(
     column: str,
     bins: int,
 ) -> tuple[gpd.GeoDataFrame, dict[int, str]]:
-    breaks_orig = jenkspy.jenks_breaks(df[column].to_numpy(), bins)  # pyright: ignore[reportArgumentType]
+    breaks_orig = jenkspy.jenks_breaks(df[column].to_numpy(), bins)  # ty: ignore[invalid-argument-type]
     breaks_middle = np.round(np.array(breaks_orig[1:-1]) / 100) * 100
 
     start = np.floor(breaks_orig[0] / 100) * 100
@@ -66,6 +65,7 @@ def plot_jobs(  # noqa: PLR0913, PLR0917
     lw: float,
     labels: dict[str, bool],
     overlay_config: dict | None,
+    circles: gpd.GeoDataFrame | None = None,
 ) -> Figure:
     cmap = mpl.colormaps["YlGn"]
 
@@ -73,7 +73,7 @@ def plot_jobs(  # noqa: PLR0913, PLR0917
     df, label_map = add_categorical_column(df, "jobs", 6)
 
     fig, ax = generate_figure(
-        *bounds,
+        bounds,
         add_mun_bounds=True,
         add_mun_labels=labels["mun"],
         add_state_bounds=False,
@@ -86,7 +86,6 @@ def plot_jobs(  # noqa: PLR0913, PLR0917
         },
         mun_poly_kwargs={"linewidth": 0.3, "alpha": 0.2},
         state_text_kwargs={"fontsize": 7, "color": "#006400", "alpha": 0.9},
-        population_grids_path=path_resource.pg_path,
         postgis_resource=postgis_resource,
     )
     df.plot(
@@ -110,11 +109,12 @@ def plot_jobs(  # noqa: PLR0913, PLR0917
     replace_categorical_legend(leg, label_map)
     leg.set_zorder(9999)
 
-    overlay_dir = (
-        Path(path_resource.data_path) / "overlays" / str(context.partition_key)
-    )
-    add_overlay(overlay_dir, ax=ax, config=overlay_config)
+    # overlay_dir = (
+    #     Path(path_resource.data_path) / "overlays" / str(context.partition_key)
+    # )
+    # add_overlay(overlay_dir, ax=ax, config=overlay_config)
 
+    add_remoteness_circles(circles, ax=ax)
     return fig
 
 
@@ -126,6 +126,39 @@ def jobs_plot_factory(
     overlay_config_op: dg.OpDefinition,
     partitions_def: dg.PartitionsDefinition,
 ) -> dg.AssetsDefinition:
+    def _asset(
+        df_jobs: gpd.GeoDataFrame, circles: gpd.GeoDataFrame | None = None
+    ) -> Figure:
+        lw = get_linewidth()
+        bounds = bounds_op()
+        labels = labels_op()
+        overlay_config = overlay_config_op()
+        return plot_jobs(
+            df_jobs,
+            bounds,
+            lw,
+            labels,
+            overlay_config,
+            **({"circles": circles} if circles is not None else {}),
+        )
+
+    if level == "zone":
+
+        @dg.graph_asset(
+            name="jobs",
+            key_prefix=f"plot_{level}",
+            ins={
+                "circles": dg.AssetIn("remoteness_circles_zone"),
+                "df_jobs": dg.AssetIn(["jobs", level]),
+            },
+            partitions_def=partitions_def,
+            group_name=f"plot_{level}",
+        )
+        def _zone_asset(df_jobs: gpd.GeoDataFrame, circles: gpd.GeoDataFrame) -> Figure:
+            return _asset(df_jobs, circles)
+
+        return _zone_asset
+
     @dg.graph_asset(
         name="jobs",
         key_prefix=f"plot_{level}",
@@ -133,14 +166,10 @@ def jobs_plot_factory(
         partitions_def=partitions_def,
         group_name=f"plot_{level}",
     )
-    def _asset(df_jobs: gpd.GeoDataFrame) -> Figure:
-        lw = get_linewidth()
-        bounds = bounds_op()
-        labels = labels_op()
-        overlay_config = overlay_config_op()
-        return plot_jobs(df_jobs, bounds, lw, labels, overlay_config)
+    def _mun_asset(df_jobs: gpd.GeoDataFrame) -> Figure:
+        return _asset(df_jobs)
 
-    return _asset
+    return _mun_asset
 
 
 jobs_plot_zone = jobs_plot_factory(

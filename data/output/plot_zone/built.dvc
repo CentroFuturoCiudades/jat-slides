@@ -1,0 +1,6 @@
+outs:
+- md5: 64f766d09f16893e910925992605598d.dir
+  size: 12378596
+  nfiles: 69
+  hash: md5
+  path: built

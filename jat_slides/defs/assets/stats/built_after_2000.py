@@ -6,12 +6,14 @@ import dagster as dg
 from jat_slides.defs.partitions import mun_partitions
 
 
-def built_after_2000_factory(
+def built_after_factory(
     suffix: str,
     partitions_def: dg.PartitionsDefinition,
+    *,
+    start_year: int = 2000,
 ) -> dg.AssetsDefinition:
     @dg.asset(
-        name="built_after_2000",
+        name=f"built_after_{start_year}",
         key_prefix=f"stats_{suffix}",
         ins={"built_data": dg.AssetIn(f"built_{suffix}")},
         partitions_def=partitions_def,
@@ -20,16 +22,18 @@ def built_after_2000_factory(
     )
     def _asset(built_data: tuple[np.ndarray, Affine]) -> float:
         arr, _ = built_data
-        return (arr >= 2000).sum() / (arr > 0).sum()
+        return (arr >= start_year).sum() / (arr > 0).sum()
 
     return _asset
 
 
 dassets = [
-    built_after_2000_factory(suffix, partitions_def=partitions_def)
+    built_after_factory(suffix, partitions_def=partitions_def)
     for suffix, partitions_def in zip(
         ("zone", "mun"),
         (zone_partitions, mun_partitions),
         strict=True,
     )
 ]
+
+dassets.append(built_after_factory("zone", zone_partitions, start_year=1990))

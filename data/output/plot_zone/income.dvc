@@ -1,0 +1,6 @@
+outs:
+- md5: e8b7a57fe1243d77096c5c6b3ff90172.dir
+  size: 12361651
+  nfiles: 69
+  hash: md5
+  path: income

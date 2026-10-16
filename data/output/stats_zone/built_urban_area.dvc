@@ -1,0 +1,6 @@
+outs:
+- md5: def18b3ca358eabe2b38eb9aa51c4f36.dir
+  size: 150031
+  nfiles: 69
+  hash: md5
+  path: built_urban_area

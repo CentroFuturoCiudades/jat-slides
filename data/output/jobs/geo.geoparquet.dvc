@@ -1,0 +1,5 @@
+outs:
+- md5: 7218b5e0f40915b2aefad1b3859acebd
+  size: 113061270
+  hash: md5
+  path: geo.geoparquet

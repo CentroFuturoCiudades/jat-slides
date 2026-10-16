@@ -1,0 +1,6 @@
+outs:
+- md5: 2707eb0f5dd545c156b0369c3c36b813.dir
+  size: 718036
+  nfiles: 69
+  hash: md5
+  path: centroids_zone

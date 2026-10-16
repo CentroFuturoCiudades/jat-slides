@@ -1,0 +1,6 @@
+outs:
+- md5: 755fca1bd307baef8685462a36a7f6cc.dir
+  size: 6255566
+  nfiles: 69
+  hash: md5
+  path: zone_1990_2020

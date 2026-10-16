@@ -9,24 +9,31 @@ from jat_slides.defs.partitions import mun_partitions
 from jat_slides.defs.resources import PathResource
 
 
-@dg.asset(
-    name="zone",
-    key_prefix="cells",
-    partitions_def=zone_partitions,
-    io_manager_key="geodataframe_manager",
-    group_name="cells_zone",
-)
-def cells_base(
-    context: dg.AssetExecutionContext,
-    path_resource: PathResource,
-) -> gpd.GeoDataFrame:
-    fpath = (
-        Path(path_resource.pg_path)
-        / "differences"
-        / "2000_2020"
-        / f"{context.partition_key}.geoparquet"
+def cells_zone_factory(start_year: int = 2000) -> dg.AssetsDefinition:
+    @dg.asset(
+        name="zone" if start_year == 2000 else f"zone_{start_year}_2020",
+        key_prefix="cells",
+        partitions_def=zone_partitions,
+        io_manager_key="geodataframe_manager",
+        group_name="cells_zone",
     )
-    return gpd.read_parquet(fpath)
+    def _asset(
+        context: dg.AssetExecutionContext,
+        path_resource: PathResource,
+    ) -> gpd.GeoDataFrame:
+        fpath = (
+            Path(path_resource.pg_path)
+            / "differences"
+            / f"{start_year}_2020"
+            / f"{context.partition_key}.geoparquet"
+        )
+        return gpd.read_parquet(fpath)
+
+    return _asset
+
+
+cells_base = cells_zone_factory()
+cells_zone_1990_2020 = cells_zone_factory(1990)
 
 
 @dg.asset(

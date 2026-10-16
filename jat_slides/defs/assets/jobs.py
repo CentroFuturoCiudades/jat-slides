@@ -16,7 +16,7 @@ from jat_slides.defs.resources import PathResource
     group_name="jobs",
 )
 def jobs_geo(path_resource: PathResource) -> gpd.GeoDataFrame:
-    jobs_path = Path(path_resource.jobs_path) / "denue_2023_estimaciones.csv"
+    jobs_path = Path(path_resource.job_estimation_path)
 
     return gpd.GeoDataFrame(
         (

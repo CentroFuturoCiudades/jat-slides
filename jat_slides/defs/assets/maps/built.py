@@ -1,5 +1,4 @@
-from pathlib import Path
-
+import geopandas as gpd
 import matplotlib as mpl
 import numpy as np
 import rasterio.plot as rio_plot
@@ -13,7 +12,7 @@ from matplotlib.patches import Patch
 
 import dagster as dg
 from jat_slides.defs.assets.maps.common import (
-    add_overlay,
+    add_remoteness_circles,
     generate_figure,
     get_bounds_base,
     get_bounds_mun,
@@ -43,7 +42,7 @@ def add_built_legend(cmap: Colormap, *, ax: Axes, loc: str | None) -> None:
         alignment="left",
         framealpha=1,
         loc=loc,
-    )
+    )  # ty: ignore[no-matching-overload]
 
     leg.set_zorder(9999)
 
@@ -61,9 +60,10 @@ def plot_raster(  # noqa: PLR0913, PLR0917
     labels: dict[str, bool],
     legend_pos: str,
     overlay_config: dict | None,
+    circles: gpd.GeoDataFrame | None = None,
 ) -> Figure:
     fig, ax = generate_figure(
-        *bounds,
+        bounds,
         add_mun_bounds=True,
         add_mun_labels=labels["mun"],
         add_state_bounds=False,
@@ -76,7 +76,6 @@ def plot_raster(  # noqa: PLR0913, PLR0917
         },
         mun_poly_kwargs={"linewidth": 0.3, "alpha": 0.2},
         state_text_kwargs={"fontsize": 7, "color": "#006400", "alpha": 0.9},
-        population_grids_path=path_resource.pg_path,
         postgis_resource=postgis_resource,
     )
 
@@ -89,11 +88,12 @@ def plot_raster(  # noqa: PLR0913, PLR0917
     rio_plot.show(data, transform=transform, ax=ax, cmap=cmap)
     add_built_legend(cmap, ax=ax, loc=legend_pos)
 
-    overlay_dir = (
-        Path(path_resource.data_path) / "overlays" / str(context.partition_key)
-    )
-    add_overlay(overlay_dir, ax=ax, config=overlay_config)
+    # overlay_dir = (
+    #     Path(path_resource.data_path) / "overlays" / str(context.partition_key)
+    # )
+    # add_overlay(overlay_dir, ax=ax, config=overlay_config)
 
+    add_remoteness_circles(circles, ax=ax)
     return fig
 
 
@@ -106,6 +106,45 @@ def built_plot_factory(  # noqa: PLR0913
     overlay_config_op: dg.OpDefinition,
     partitions_def: dg.PartitionsDefinition,
 ) -> dg.AssetsDefinition:
+    def _asset(
+        data_and_transform: tuple[np.ndarray, Affine],
+        circles: gpd.GeoDataFrame | None = None,
+    ) -> Figure:
+        bounds = bounds_op()
+        labels = labels_op()
+        legend_pos = legend_pos_op()
+        overlay_config = overlay_config_op()
+        return plot_raster(
+            bounds,
+            data_and_transform,
+            labels=labels,
+            legend_pos=legend_pos,
+            overlay_config=overlay_config,
+            **({"circles": circles} if circles is not None else {}),
+        )
+
+    if level == "zone":
+
+        @dg.graph_asset(
+            name="built",
+            key_prefix=f"plot_{level}",
+            ins={
+                "circles": dg.AssetIn("remoteness_circles_zone"),
+                "data_and_transform": dg.AssetIn(
+                    key=f"built_{level}",
+                    input_manager_key="reprojected_raster_manager",
+                ),
+            },
+            partitions_def=partitions_def,
+            group_name=f"plot_{level}",
+        )
+        def _zone_asset(
+            data_and_transform: tuple[np.ndarray, Affine], circles: gpd.GeoDataFrame
+        ) -> Figure:
+            return _asset(data_and_transform, circles)
+
+        return _zone_asset
+
     @dg.graph_asset(
         name="built",
         key_prefix=f"plot_{level}",
@@ -118,20 +157,10 @@ def built_plot_factory(  # noqa: PLR0913
         partitions_def=partitions_def,
         group_name=f"plot_{level}",
     )
-    def _asset(data_and_transform: tuple[np.ndarray, Affine]) -> Figure:
-        bounds = bounds_op()
-        labels = labels_op()
-        legend_pos = legend_pos_op()
-        overlay_config = overlay_config_op()
-        return plot_raster(
-            bounds,
-            data_and_transform,
-            labels=labels,
-            legend_pos=legend_pos,
-            overlay_config=overlay_config,
-        )
+    def _mun_asset(data_and_transform: tuple[np.ndarray, Affine]) -> Figure:
+        return _asset(data_and_transform)
 
-    return _asset
+    return _mun_asset
 
 
 built_plot_zone = built_plot_factory(

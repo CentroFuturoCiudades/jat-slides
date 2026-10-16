@@ -1,0 +1,6 @@
+outs:
+- md5: 1659917c476373975f59eea7a0b52c82.dir
+  size: 151651
+  nfiles: 69
+  hash: md5
+  path: built_area

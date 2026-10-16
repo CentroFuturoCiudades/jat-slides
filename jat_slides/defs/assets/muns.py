@@ -40,7 +40,7 @@ def muns_factory(year: int) -> dg.AssetsDefinition:
         code_prefix = context.partition_key.rjust(5, "0")
 
         return gpd.GeoDataFrame(
-            df.loc[df["CVEGEO"].str.startswith(code_prefix), ["POBTOT", "geometry"]],
+            df.loc[df["CVEGEO"].str.startswith(code_prefix), ["pobtot", "geometry"]],
         )
 
     return _asset

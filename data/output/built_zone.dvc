@@ -1,0 +1,6 @@
+outs:
+- md5: 7266635caadd23542572836e508edd11.dir
+  size: 29787229
+  nfiles: 69
+  hash: md5
+  path: built_zone

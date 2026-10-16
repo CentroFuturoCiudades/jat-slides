@@ -1,0 +1,6 @@
+outs:
+- md5: f0b77cf7d4f54383bf3859182acf3fbf.dir
+  size: 30241233
+  nfiles: 69
+  hash: md5
+  path: zone

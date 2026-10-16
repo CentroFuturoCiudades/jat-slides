@@ -1,6 +1,7 @@
 import datetime
+from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, overload
+from typing import TYPE_CHECKING, Literal, cast, overload
 from zoneinfo import ZoneInfo
 
 import numpy as np
@@ -24,6 +25,14 @@ if TYPE_CHECKING:
 
 RGB_BLUE = RGBColor(0x00, 0x70, 0xC0)
 RGB_RED = RGBColor(0xFF, 0x00, 0x00)
+
+
+@dataclass(frozen=True)
+class Comparison:
+    start_year: int
+    lost_pop_fraction: float
+    built_fraction: float
+    population_map: Path
 
 
 def find_layouts(pres: PresentationType) -> dict:
@@ -180,29 +189,34 @@ def add_built_slide(  # noqa: PLR0913
     layout: SlideLayout,
     built_after_frac: float,
     *,
+    start_year: int,
     pop_df: pd.DataFrame,
     built_area_df: pd.DataFrame,
     urban_area_df: pd.DataFrame,
     picture_path: Path,
 ) -> None:
-    pop_df = pop_df.set_index("year")["pop"] / 1e6
-    built_area_df = built_area_df.set_index("year")["area"] / 1e6
-    urban_area_df = urban_area_df.set_index("year")["area"] / 1e6
+    population = pop_df.set_index("year")["pop"] / 1e6
+    built_area = built_area_df.set_index("year")["area"] / 1e6
+    urban_area = urban_area_df.set_index("year")["area"] / 1e6
 
-    pop_change = (pop_df.loc[2020] - pop_df.loc[2000]) / pop_df.loc[2000] + 1
-    built_change = (
-        built_area_df.loc[2020] - built_area_df.loc[2000]
-    ) / built_area_df.loc[2000] + 1
-    urban_change = (
-        urban_area_df.loc[2020] - urban_area_df.loc[2000]
-    ) / urban_area_df.loc[2000] + 1
+    pop_change = (population.loc[2020] - population.loc[start_year]) / population.loc[
+        start_year
+    ] + 1
+    built_change = (built_area.loc[2020] - built_area.loc[start_year]) / built_area.loc[
+        start_year
+    ] + 1
+    urban_change = (urban_area.loc[2020] - urban_area.loc[start_year]) / urban_area.loc[
+        start_year
+    ] + 1
 
     built_slide = pres.slides.add_slide(layout)
 
     title_shape = find_shape(
         built_slide.shapes, prefix="Text Placeholder 2", kind="shape"
     )
-    add_normal_text_to_shape(title_shape, "Dinámica de urbanización 2000 a 2020")
+    add_normal_text_to_shape(
+        title_shape, f"Dinámica de urbanización {start_year} a 2020"
+    )
 
     text_shape = find_shape(
         built_slide.shapes, prefix="Text Placeholder 3", kind="shape"
@@ -211,7 +225,9 @@ def add_built_slide(  # noqa: PLR0913
         text_shape,
         text_left="El ",
         highlight=f"{built_after_frac:.0%}",
-        text_right=" de los píxeles se urbanizaron en el año 2000 o posterior.",
+        text_right=(
+            f" de los píxeles se urbanizaron en el año {start_year} o posterior."
+        ),
         color=RGB_BLUE,
     )
 
@@ -236,16 +252,16 @@ def add_built_slide(  # noqa: PLR0913
                 "Superficie urbana (km²)",
             ],
             [
-                "2000",
-                f"{pop_df.loc[2000]:.2f}",
-                f"{built_area_df.loc[2000]:.1f}",
-                f"{urban_area_df.loc[2000]:.1f}",
+                str(start_year),
+                f"{population.loc[start_year]:.2f}",
+                f"{built_area.loc[start_year]:.1f}",
+                f"{urban_area.loc[start_year]:.1f}",
             ],
             [
                 "2020",
-                f"{pop_df.loc[2020]:.2f}",
-                f"{built_area_df.loc[2020]:.1f}",
-                f"{urban_area_df.loc[2020]:.1f}",
+                f"{population.loc[2020]:.2f}",
+                f"{built_area.loc[2020]:.1f}",
+                f"{urban_area.loc[2020]:.1f}",
             ],
             ["", f"x{pop_change:.2f}", f"x{built_change:.2f}", f"x{urban_change:.2f}"],
         ],
@@ -297,14 +313,12 @@ def add_single_picture_slide(
 def generate_single_slide(  # noqa: PLR0913
     *,
     name: str,
-    lost_pop_after_2000: float,
-    built_after_2000: float,
+    comparisons: tuple[Comparison, ...],
     total_jobs: float,
     pop_df: pd.DataFrame,
     built_df: pd.DataFrame,
     built_urban_df: pd.DataFrame,
     built_figure_path: Path,
-    pg_figure_path: Path,
     income_figure_path: Path | None,
     jobs_figure_path: Path,
 ) -> PresentationType:
@@ -313,29 +327,31 @@ def generate_single_slide(  # noqa: PLR0913
 
     add_section_slide(pres, layouts["section"], name)
 
-    add_picture_with_highlight_slide(
-        pres,
-        layouts["picture_with_title_and_content"],
-        title="Dinámica de población 2000 a 2020",
-        text_left="El ",
-        highlight=f"{lost_pop_after_2000:.0%}",
-        text_right=(
-            " de la superficie construida de 2020 perdió población"
-            " con respecto al 2000."
-        ),
-        picture_path=pg_figure_path,
-        color=RGB_RED,
-    )
+    for comparison in comparisons:
+        add_picture_with_highlight_slide(
+            pres,
+            layouts["picture_with_title_and_content"],
+            title=f"Dinámica de población {comparison.start_year} a 2020",
+            text_left="El ",
+            highlight=f"{comparison.lost_pop_fraction:.0%}",
+            text_right=(
+                " de la superficie construida de 2020 perdió población"
+                f" con respecto al {comparison.start_year}."
+            ),
+            picture_path=comparison.population_map,
+            color=RGB_RED,
+        )
 
-    add_built_slide(
-        pres,
-        layouts["picture_with_title_content_table"],
-        built_after_2000,
-        pop_df=pop_df,
-        built_area_df=built_df,
-        urban_area_df=built_urban_df,
-        picture_path=built_figure_path,
-    )
+        add_built_slide(
+            pres,
+            layouts["picture_with_title_content_table"],
+            comparison.built_fraction,
+            start_year=comparison.start_year,
+            pop_df=pop_df,
+            built_area_df=built_df,
+            urban_area_df=built_urban_df,
+            picture_path=built_figure_path,
+        )
 
     if income_figure_path is not None:
         add_single_picture_slide(
@@ -364,9 +380,23 @@ def slides_factory(
     *,
     partitions_def: dg.PartitionsDefinition,
 ) -> dg.AssetsDefinition:
+    historical_ins = {}
+    if level == "zone":
+        historical_ins = {
+            "lost_pop_after_1990": dg.AssetIn(
+                key=["stats_zone", "lost_pop_after_1990"]
+            ),
+            "built_after_1990": dg.AssetIn(key=["stats_zone", "built_after_1990"]),
+            "pg_1990_figure_path": dg.AssetIn(
+                key=["plot_zone", "population_grid_1990_2020"],
+                input_manager_key="path_manager",
+            ),
+        }
+
     @dg.asset(
         name=f"slides_{level}",
         ins={
+            **historical_ins,
             "lost_pop_after_2000": dg.AssetIn(
                 key=[f"stats_{level}", "lost_pop_after_2000"],
             ),
@@ -407,21 +437,33 @@ def slides_factory(
         built_urban_df: pd.DataFrame,
         pg_figure_path: Path,
         built_figure_path: Path,
-        income_figure_path: Path,
+        income_figure_path: Path | None,
         jobs_figure_path: Path,
+        **historical_inputs: float | Path,
     ) -> PresentationType:
         config_resource = getattr(context.resources, f"{level}_config_resource")
 
+        comparisons = [
+            Comparison(2000, lost_pop_after_2000, built_after_2000, pg_figure_path)
+        ]
+        if level == "zone":
+            comparisons.append(
+                Comparison(
+                    1990,
+                    cast("float", historical_inputs["lost_pop_after_1990"]),
+                    cast("float", historical_inputs["built_after_1990"]),
+                    cast("Path", historical_inputs["pg_1990_figure_path"]),
+                )
+            )
+
         return generate_single_slide(
             name=config_resource.names[context.partition_key],
-            lost_pop_after_2000=lost_pop_after_2000,
-            built_after_2000=built_after_2000,
+            comparisons=tuple(comparisons),
             total_jobs=total_jobs,
             pop_df=pop_df,
             built_df=built_df,
             built_urban_df=built_urban_df,
             built_figure_path=built_figure_path,
-            pg_figure_path=pg_figure_path,
             income_figure_path=income_figure_path,
             jobs_figure_path=jobs_figure_path,
         )

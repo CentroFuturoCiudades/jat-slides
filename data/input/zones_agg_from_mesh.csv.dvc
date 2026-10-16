@@ -1,0 +1,5 @@
+outs:
+- md5: 952e3d700459bd307a0b43facbc30614
+  size: 8920
+  hash: md5
+  path: zones_agg_from_mesh.csv

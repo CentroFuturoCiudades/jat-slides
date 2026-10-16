@@ -18,7 +18,7 @@ def calculate_lost_pop(
         (agebs_1990, agebs_2000, agebs_2010, agebs_2020),
         strict=True,
     ):
-        pop = agebs["POBTOT"].sum()
+        pop = agebs["pobtot"].sum()
         pops.append({"year": year, "pop": pop})
     return pd.DataFrame(pops)
 
