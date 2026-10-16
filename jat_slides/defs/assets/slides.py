@@ -10,6 +10,7 @@ from babel.dates import format_date
 from cfc_dagster_utils.partitions import zone_partitions
 from pptx import Presentation
 from pptx.dml.color import RGBColor
+from pptx.parts.image import Image
 from pptx.presentation import Presentation as PresentationType
 from pptx.shapes.autoshape import Shape
 from pptx.shapes.placeholder import PicturePlaceholder, TablePlaceholder
@@ -25,6 +26,7 @@ if TYPE_CHECKING:
 
 RGB_BLUE = RGBColor(0x00, 0x70, 0xC0)
 RGB_RED = RGBColor(0xFF, 0x00, 0x00)
+TABLE_STYLE_ID = "{2D5ABB26-0587-4C30-8999-92F81FD0307C}"
 
 
 @dataclass(frozen=True)
@@ -33,6 +35,13 @@ class Comparison:
     lost_pop_fraction: float
     built_fraction: float
     population_map: Path
+
+
+@dataclass(frozen=True)
+class RadialComparison:
+    start_year: int
+    picture_path: Path
+    table: pd.DataFrame
 
 
 def find_layouts(pres: PresentationType) -> dict:
@@ -239,17 +248,17 @@ def add_built_slide(  # noqa: PLR0913
     table.columns[1].width = Cm(3.0)
     table.columns[2].width = Cm(3.0)
     table.columns[3].width = Cm(2.9)
+    table.rows[0].height = Cm(1.7)
 
-    tbl = table_frame._element.graphic.graphicData.tbl  # noqa: SLF001
-    tbl[0][-1].text = "{2D5ABB26-0587-4C30-8999-92F81FD0307C}"
+    table_frame.element.xpath(".//a:tableStyleId")[0].text = TABLE_STYLE_ID
 
     text_arr = np.array(
         [
             [
                 "",
-                "Millones de habitantes",
-                "Superficie  construida (km²)",
-                "Superficie urbana (km²)",
+                "Población\n(millones)",
+                "Superficie\nconstruida\n(km²)",
+                "Superficie\nurbana\n(km²)",
             ],
             [
                 str(start_year),
@@ -279,14 +288,17 @@ def add_built_slide(  # noqa: PLR0913
     for row_idx in range(text_arr.shape[0]):
         for col_idx in range(text_arr.shape[1]):
             cell = table.cell(row_idx, col_idx)
-            p = cell.text_frame.paragraphs[0]
-            run = p.add_run()
-            run.text = text_arr[row_idx, col_idx]
-            run.font.size = Pt(14)
-
-            if style_arr[row_idx, col_idx]:
-                run.font.bold = True
-                run.font.color.rgb = RGB_BLUE
+            cell.text = text_arr[row_idx, col_idx]
+            for paragraph in cell.text_frame.paragraphs:
+                if row_idx == 0:
+                    paragraph.space_before = Pt(0)
+                    paragraph.space_after = Pt(0)
+                    paragraph.line_spacing = 1.0
+                for run in paragraph.runs:
+                    run.font.size = Pt(12 if row_idx == 0 else 14)
+                    if style_arr[row_idx, col_idx]:
+                        run.font.bold = True
+                        run.font.color.rgb = RGB_BLUE
 
     if picture_path.exists():
         figure_shape = find_shape(built_slide.shapes, prefix="Picture", kind="picture")
@@ -310,6 +322,70 @@ def add_single_picture_slide(
         figure_shape.insert_picture(str(picture_path))
 
 
+def add_radial_population_slide(
+    pres: PresentationType, layout: SlideLayout, comparison: RadialComparison
+) -> None:
+    slide = pres.slides.add_slide(layout)
+    title = find_shape(slide.shapes, prefix="Text Placeholder 2", kind="shape")
+    title_left, title_width = title.left, title.width
+    title.left, title.width = title_left, title_width
+    title.top, title.height = Cm(0.45), Cm(2.6)
+    add_normal_text_to_shape(
+        title,
+        f"Cambio de población por distancia al centro,\n{comparison.start_year} a 2020",
+    )
+    for paragraph in title.text_frame.paragraphs:
+        for run in paragraph.runs:
+            run.font.size = Pt(24)
+    narrative = find_shape(slide.shapes, prefix="Text Placeholder 3", kind="shape")
+    narrative.text_frame.clear()
+
+    placeholder = find_shape(slide.shapes, prefix="Picture", kind="picture")
+    left, top, width, height = (
+        placeholder.left,
+        placeholder.top,
+        placeholder.width,
+        placeholder.height,
+    )
+    image_width, image_height = Image.from_file(str(comparison.picture_path)).size
+    scale = min(width / image_width, height / image_height)
+    picture = placeholder.insert_picture(str(comparison.picture_path))
+    picture.width = round(image_width * scale)
+    picture.height = round(image_height * scale)
+    picture.left = left + (width - picture.width) // 2
+    picture.top = top + (height - picture.height) // 2
+    picture.crop_left = picture.crop_right = 0
+    picture.crop_top = picture.crop_bottom = 0
+
+    table_placeholder = find_shape(slide.shapes, prefix="Table", kind="table")
+    table_left, table_width = table_placeholder.left, table_placeholder.width
+    table_frame = table_placeholder.insert_table(rows=5, cols=2)
+    table_height = table_frame.height
+    table_frame.left = table_left
+    table_frame.width = table_width
+    table_frame.height = table_height
+    table_frame.top = top + (height - table_height) // 2
+    table = table_frame.table
+    table_frame.element.xpath(".//a:tableStyleId")[0].text = TABLE_STYLE_ID
+    rows = [("Zona", "Cambio de población")]
+    rows.extend(
+        (str(category), f"{change:,.0f}")
+        for category, change in comparison.table[
+            ["remoteness_cat", "pop_diff"]
+        ].itertuples(index=False, name=None)
+    )
+    for row_index, row in enumerate(rows):
+        for column_index, text in enumerate(row):
+            cell = table.cell(row_index, column_index)
+            cell.text = text
+            for paragraph in cell.text_frame.paragraphs:
+                for run in paragraph.runs:
+                    run.font.size = Pt(14)
+                    if row_index == 0 or column_index == 0:
+                        run.font.bold = True
+                        run.font.color.rgb = RGB_BLUE
+
+
 def generate_single_slide(  # noqa: PLR0913
     *,
     name: str,
@@ -321,13 +397,14 @@ def generate_single_slide(  # noqa: PLR0913
     built_figure_path: Path,
     income_figure_path: Path | None,
     jobs_figure_path: Path,
+    radial_comparisons: tuple[RadialComparison, ...] = (),
 ) -> PresentationType:
     pres = Presentation("./template.pptx")
     layouts = find_layouts(pres)
 
     add_section_slide(pres, layouts["section"], name)
 
-    for comparison in comparisons:
+    for comparison in sorted(comparisons, key=lambda item: item.start_year):
         add_picture_with_highlight_slide(
             pres,
             layouts["picture_with_title_and_content"],
@@ -352,6 +429,12 @@ def generate_single_slide(  # noqa: PLR0913
             urban_area_df=built_urban_df,
             picture_path=built_figure_path,
         )
+
+        for radial_comparison in radial_comparisons:
+            if radial_comparison.start_year == comparison.start_year:
+                add_radial_population_slide(
+                    pres, layouts["picture_with_title_content_table"], radial_comparison
+                )
 
     if income_figure_path is not None:
         add_single_picture_slide(
@@ -393,10 +476,20 @@ def slides_factory(
             ),
         }
 
+    radial_ins = {}
+    if level == "zone":
+        for year in (2000, 1990):
+            name = f"radial_population_change_{year}_2020"
+            radial_ins[f"radial_{year}_figure_path"] = dg.AssetIn(
+                key=["plot_zone", name], input_manager_key="path_manager"
+            )
+            radial_ins[f"radial_{year}_table"] = dg.AssetIn(key=["stats_zone", name])
+
     @dg.asset(
         name=f"slides_{level}",
         ins={
             **historical_ins,
+            **radial_ins,
             "lost_pop_after_2000": dg.AssetIn(
                 key=[f"stats_{level}", "lost_pop_after_2000"],
             ),
@@ -439,7 +532,7 @@ def slides_factory(
         built_figure_path: Path,
         income_figure_path: Path | None,
         jobs_figure_path: Path,
-        **historical_inputs: float | Path,
+        **historical_inputs: float | Path | pd.DataFrame,
     ) -> PresentationType:
         config_resource = getattr(context.resources, f"{level}_config_resource")
 
@@ -456,6 +549,19 @@ def slides_factory(
                 )
             )
 
+        radial_comparisons = (
+            tuple(
+                RadialComparison(
+                    year,
+                    cast("Path", historical_inputs[f"radial_{year}_figure_path"]),
+                    cast("pd.DataFrame", historical_inputs[f"radial_{year}_table"]),
+                )
+                for year in (2000, 1990)
+            )
+            if level == "zone"
+            else ()
+        )
+
         return generate_single_slide(
             name=config_resource.names[context.partition_key],
             comparisons=tuple(comparisons),
@@ -466,6 +572,7 @@ def slides_factory(
             built_figure_path=built_figure_path,
             income_figure_path=income_figure_path,
             jobs_figure_path=jobs_figure_path,
+            radial_comparisons=radial_comparisons,
         )
 
     return _asset

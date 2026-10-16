@@ -160,7 +160,7 @@ def test_slideshow(tmp_path: Path, level: str, *, with_income: bool) -> None:
         path = tmp_path / f"{name}.png"
         Image.new("RGB", (100, 100), color).save(path)
         images[name] = path
-    historical = (
+    historical: dict[str, float | Path | pd.DataFrame] = (
         {
             "lost_pop_after_1990": 0.25,
             "built_after_1990": 0.75,
@@ -169,6 +169,20 @@ def test_slideshow(tmp_path: Path, level: str, *, with_income: bool) -> None:
         if level == "zone"
         else {}
     )
+    if level == "zone":
+        for year in (2000, 1990):
+            historical[f"radial_{year}_figure_path"] = images[str(year)]
+            historical[f"radial_{year}_table"] = pd.DataFrame(
+                {
+                    "remoteness_cat": [
+                        "Central",
+                        "Intermedia",
+                        "Distante",
+                        "Periurbana",
+                    ],
+                    "pop_diff": [-1234.5, 2000, 0, year],
+                }
+            )
     # Exercise the asset adapter as well as the renderer, including conditional inputs.
     asset = slides_zone if level == "zone" else slides_mun
     with dg.build_asset_context(
@@ -201,13 +215,20 @@ def test_slideshow(tmp_path: Path, level: str, *, with_income: bool) -> None:
     pres = cast("PresentationType", pres)
     pres.save(str(path))
     slides = Presentation(str(path)).slides
-    np.testing.assert_equal(len(slides), 4 + int(with_income) + 2 * (level == "zone"))
-    np.testing.assert_equal("2000 a 2020" in slide_text(slides[1]), desired=True)
-    np.testing.assert_equal("50%" in slide_text(slides[1]), desired=True)
-    np.testing.assert_equal(slide_image(slides[1]), images["2000"].read_bytes())
+    np.testing.assert_equal(len(slides), 4 + int(with_income) + 4 * (level == "zone"))
+    population_2000_index = 4 if level == "zone" else 1
+    np.testing.assert_equal(
+        "2000 a 2020" in slide_text(slides[population_2000_index]), desired=True
+    )
+    np.testing.assert_equal(
+        "50%" in slide_text(slides[population_2000_index]), desired=True
+    )
+    np.testing.assert_equal(
+        slide_image(slides[population_2000_index]), images["2000"].read_bytes()
+    )
     for index, year, factor in [
-        (2, "2000", "x2.00"),
-        *([(4, "1990", "x4.00")] if level == "zone" else []),
+        (5 if level == "zone" else 2, "2000", "x2.00"),
+        *([(2, "1990", "x4.00")] if level == "zone" else []),
     ]:
         table = next(shape.table for shape in slides[index].shapes if shape.has_table)
         np.testing.assert_equal(table.cell(1, 0).text, year)
@@ -227,8 +248,37 @@ def test_slideshow(tmp_path: Path, level: str, *, with_income: bool) -> None:
             slide_image(slides[index]), images["built"].read_bytes()
         )
     if level == "zone":
-        np.testing.assert_equal("1990 a 2020" in slide_text(slides[3]), desired=True)
-        np.testing.assert_equal("25%" in slide_text(slides[3]), desired=True)
-        np.testing.assert_equal("75%" in slide_text(slides[4]), desired=True)
-        np.testing.assert_equal(slide_image(slides[3]), images["1990"].read_bytes())
+        np.testing.assert_equal("1990 a 2020" in slide_text(slides[1]), desired=True)
+        np.testing.assert_equal("25%" in slide_text(slides[1]), desired=True)
+        np.testing.assert_equal("75%" in slide_text(slides[2]), desired=True)
+        np.testing.assert_equal(slide_image(slides[1]), images["1990"].read_bytes())
     np.testing.assert_equal("Empleos totales" in slide_text(slides[-1]), desired=True)
+    if level == "zone":
+        for index, year in [(3, 1990), (6, 2000)]:
+            slide = slides[index]
+            np.testing.assert_equal(
+                f"Cambio de población por distancia al centro, {year} a 2020"
+                in slide_text(slide).replace("\n", " "),
+                desired=True,
+            )
+            picture = next(s for s in slide.shapes if isinstance(s, Picture))
+            frame = next(s for s in slide.shapes if s.has_table)
+            np.testing.assert_equal(picture.image.blob, images[str(year)].read_bytes())
+            np.testing.assert_equal(
+                [
+                    picture.crop_left,
+                    picture.crop_right,
+                    picture.crop_top,
+                    picture.crop_bottom,
+                ],
+                [0, 0, 0, 0],
+            )
+            np.testing.assert_equal(
+                picture.left + picture.width <= frame.left, desired=True
+            )
+            table = frame.table
+            np.testing.assert_equal(len(table.rows), 5)
+            np.testing.assert_equal(len(table.columns), 2)
+            np.testing.assert_equal(table.cell(0, 1).text, "Cambio de población")
+            np.testing.assert_equal(table.cell(1, 1).text, "-1,234")
+            np.testing.assert_equal(table.cell(4, 1).text, f"{year:,}")

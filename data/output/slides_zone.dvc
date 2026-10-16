@@ -1,0 +1,6 @@
+outs:
+- md5: 4067fe2ac67479ef8d38629dfd53d88e.dir
+  size: 118728598
+  nfiles: 71
+  hash: md5
+  path: slides_zone
