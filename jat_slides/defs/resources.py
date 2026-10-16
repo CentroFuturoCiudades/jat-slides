@@ -4,6 +4,7 @@ from dagster import ConfigurableResource
 class PathResource(ConfigurableResource):
     in_path: str
     out_path: str
+    pg_path: str
 
 
 class ZonesListResource(ConfigurableResource):

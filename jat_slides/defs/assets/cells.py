@@ -22,7 +22,6 @@ def cells_base(
 ) -> gpd.GeoDataFrame:
     fpath = (
         Path(path_resource.pg_path)
-        / "final"
         / "differences"
         / "2000_2020"
         / f"{context.partition_key}.gpkg"

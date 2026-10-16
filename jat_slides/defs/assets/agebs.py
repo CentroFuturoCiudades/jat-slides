@@ -25,8 +25,10 @@ def agebs_factory(year: int) -> dg.AssetsDefinition:
                     """
                 SELECT census_2020_ageb.pobtot, census_2020_ageb.geometry
                     FROM census_2020_ageb
+                INNER JOIN census_2020_loc
+                    ON census_2020_ageb.cve_loc = census_2020_loc.cvegeo
                 INNER JOIN census_2020_mun
-                    ON census_2020_ageb.cve_mun = census_2020_mun.cvegeo
+                    ON census_2020_loc.cve_mun = census_2020_mun.cvegeo
                 WHERE census_2020_mun.cve_met = %(zone)s
                 """,
                     conn,

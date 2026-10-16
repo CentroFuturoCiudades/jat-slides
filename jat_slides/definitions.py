@@ -26,7 +26,9 @@ def definitions() -> dg.Definitions:
     # Resources
     data_path = project_root / "data"
     path_resource = PathResource(
-        in_path=str(data_path / "input"), out_path=str(data_path / "output")
+        in_path=str(data_path / "input"),
+        out_path=str(data_path / "output"),
+        pg_path="/Users/rodolfofigueroa/Documents/ageb-alignment/data/output",
     )
 
     zone_config_path = Path("./config/zone.toml")
@@ -57,10 +59,10 @@ def definitions() -> dg.Definitions:
 
     postgis_resource = PostgresResource(
         host=dg.EnvVar("POSTGRES_HOST"),
-        port=dg.EnvVar("POSTGRES_PORT"),
+        port=dg.EnvVar.int("POSTGRES_PORT"),
         user=dg.EnvVar("POSTGRES_USER"),
         password=dg.EnvVar("POSTGRES_PASSWORD"),
-        db=dg.EnvVar("POSTGRES_DB"),
+        database=dg.EnvVar("POSTGRES_DB"),
     )
 
     # Managers

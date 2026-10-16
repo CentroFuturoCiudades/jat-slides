@@ -27,7 +27,7 @@ def muns_factory(year: int) -> dg.AssetsDefinition:
             ent = context.partition_key[:2]
 
         agebs_dir_path = (
-            Path(path_resource.pg_path) / "final" / "zone_agebs" / "shaped" / str(year)
+            Path(path_resource.pg_path) / "zone_agebs" / "shaped" / str(year)
         )
 
         df = pd.concat(
