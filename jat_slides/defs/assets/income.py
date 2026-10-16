@@ -28,9 +28,11 @@ def income_zone(
                 FROM income_2020
             INNER JOIN census_2020_ageb
                 ON census_2020_ageb.cvegeo = income_2020.cvegeo
+            INNER JOIN census_2020_loc
+                ON census_2020_ageb.cve_loc = census_2020_loc.cvegeo
             INNER JOIN census_2020_mun
-                ON census_2020_ageb.cve_mun = census_2020_mun.cvegeo
-            WHERE census_2020_mun.cve_met = %(zone)s
+                ON census_2020_loc.cve_mun = census_2020_mun.cvegeo
+            WHERE cve_met = %(zone)s
             """,
                 conn,
                 params={"zone": zone},

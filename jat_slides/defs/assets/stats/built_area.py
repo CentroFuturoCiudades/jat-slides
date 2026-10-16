@@ -1,14 +1,11 @@
-from pathlib import Path
-
 import geopandas as gpd
 import pandas as pd
-import rasterio as rio
-import rasterio.mask as rio_mask
 from cfc_dagster_utils.partitions import zone_partitions
 
 import dagster as dg
 from jat_slides.defs.partitions import mun_partitions
-from jat_slides.defs.resources import PathResource
+from jat_slides.defs.resources import EarthEngineResource
+from jat_slides.ghsl import normalize_geometries
 
 YEARS = (1990, 2000, 2010, 2020)
 
@@ -18,20 +15,15 @@ def get_year_area_factory(year: int) -> dg.OpDefinition:
         name=f"get_year_area_{year}",
     )
     def _op(
-        path_resource: PathResource,
+        earthengine_resource: EarthEngineResource,
         bounds: dict[int, list],
     ) -> float:
-        fpath = Path(path_resource.ghsl_path) / "BUILT_100" / f"{year}.tif"
-        with rio.open(fpath, nodata=65535) as ds:
-            data, _ = rio_mask.mask(ds, bounds[year], crop=True, nodata=0)
-
-        data[data == 65535] = 0
-        return float(data.sum())
+        return earthengine_resource.surface_area(year, bounds[year])
 
     return _op
 
 
-get_year_area_ops = {year: get_year_area_factory(year) for year in range(1975, 2021, 5)}
+get_year_area_ops = {year: get_year_area_factory(year) for year in YEARS}
 
 
 @dg.op
@@ -47,7 +39,7 @@ def get_bounds(
         (agebs_1990, agebs_2000, agebs_2010, agebs_2020),
         strict=True,
     ):
-        bounds[year] = agebs["geometry"].to_numpy().tolist()
+        bounds[year] = normalize_geometries(agebs)
     return bounds
 
 

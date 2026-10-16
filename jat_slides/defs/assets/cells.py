@@ -24,9 +24,9 @@ def cells_base(
         Path(path_resource.pg_path)
         / "differences"
         / "2000_2020"
-        / f"{context.partition_key}.gpkg"
+        / f"{context.partition_key}.geoparquet"
     )
-    return gpd.read_file(fpath)
+    return gpd.read_parquet(fpath)
 
 
 @dg.asset(
@@ -49,7 +49,9 @@ def cells_mun(
 
     diff_path = Path(path_resource.pg_path) / "final" / "differences" / "2000_2020"
     df = gpd.GeoDataFrame(
-        pd.concat([gpd.read_file(path) for path in diff_path.glob(f"{ent}.*.gpkg")]),
+        pd.concat(
+            [gpd.read_parquet(path) for path in diff_path.glob(f"{ent}.*.geoparquet")]
+        ),
     )
 
     joined = df.sjoin(agebs.to_crs("EPSG:6372"), how="inner", predicate="intersects")[

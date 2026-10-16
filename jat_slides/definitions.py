@@ -14,7 +14,7 @@ from jat_slides.defs.managers import (
     ReprojectedRasterIOManager,
     TextIOManager,
 )
-from jat_slides.defs.resources import ConfigResource, PathResource
+from jat_slides.defs.resources import ConfigResource, EarthEngineResource, PathResource
 
 
 @dg.definitions
@@ -28,7 +28,7 @@ def definitions() -> dg.Definitions:
     path_resource = PathResource(
         in_path=str(data_path / "input"),
         out_path=str(data_path / "output"),
-        pg_path="/Users/rodolfofigueroa/Documents/ageb-alignment/data/output",
+        pg_path=dg.EnvVar("PG_PATH"),
     )
 
     zone_config_path = Path("./config/zone.toml")
@@ -84,6 +84,9 @@ def definitions() -> dg.Definitions:
     # Out
     extra_defs = dg.Definitions(
         resources={
+            "earthengine_resource": EarthEngineResource(
+                project=dg.EnvVar("EARTHENGINE_PROJECT")
+            ),
             "path_resource": path_resource,
             "zone_config_resource": zone_config,
             "mun_config_resource": mun_config,

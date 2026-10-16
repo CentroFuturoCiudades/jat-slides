@@ -1,58 +1,21 @@
-from pathlib import Path
-
 import geopandas as gpd
 import numpy as np
-import rasterio as rio
-import rasterio.mask as rio_mask
 import shapely
 from affine import Affine
 from cfc_dagster_utils.partitions import zone_partitions
 
 import dagster as dg
 from jat_slides.defs.partitions import mun_partitions
-from jat_slides.defs.resources import PathResource
-
-YEARS = range(1975, 2021, 5)
-
-
-def load_built_rasters_factory(year: int) -> dg.OpDefinition:
-    @dg.op(
-        name=f"load_built_rasters_{year}",
-        out={"data": dg.Out(), "transform": dg.Out()},
-    )
-    def _op(
-        path_resource: PathResource,
-        bounds: list[shapely.Geometry],
-    ) -> tuple[np.ndarray, Affine]:
-        fpath = Path(path_resource.ghsl_path) / "BUILT_100" / f"{year}.tif"
-        with rio.open(fpath, nodata=65535) as ds:
-            data, transform = rio_mask.mask(ds, bounds, crop=True, nodata=0)
-
-        data[data == 65535] = 0
-
-        mask = data[0] >= (100 * 100 * 0.2)
-        mask = mask.astype(float)
-        mask[mask == 0] = np.nan
-        mask *= year
-
-        return mask, transform
-
-    return _op
-
-
-load_built_rasters_ops = {year: load_built_rasters_factory(year) for year in YEARS}
+from jat_slides.defs.resources import EarthEngineResource
+from jat_slides.ghsl import normalize_geometries
 
 
 @dg.op(out=dg.Out(io_manager_key="raster_manager"))
-def reduce_rasters(
-    rasters: list[np.ndarray],
-    transforms: list[Affine],
+def load_built_raster(
+    earthengine_resource: EarthEngineResource,
+    bounds: list[shapely.Geometry],
 ) -> tuple[np.ndarray, Affine]:
-    arr = np.array(rasters)
-    arr = np.nanmin(arr, axis=0)
-    arr[np.isnan(arr)] = 0
-    arr = arr.astype(int)
-    return arr, transforms[0]
+    return earthengine_resource.first_built(bounds)
 
 
 @dg.op
@@ -64,10 +27,10 @@ def get_total_bounds(
 ) -> list:
     geoms = np.concatenate(
         [
-            agebs_1990["geometry"].to_numpy(),
-            agebs_2000["geometry"].to_numpy(),
-            agebs_2010["geometry"].to_numpy(),
-            agebs_2020["geometry"].to_numpy(),
+            normalize_geometries(agebs_1990),
+            normalize_geometries(agebs_2000),
+            normalize_geometries(agebs_2010),
+            normalize_geometries(agebs_2020),
         ],
     )
     return [shapely.union_all(geoms)]
@@ -82,14 +45,7 @@ def built_graph(
 ) -> tuple[np.ndarray, Affine]:
     bounds = get_total_bounds(agebs_1990, agebs_2000, agebs_2010, agebs_2020)
 
-    rasters, transforms = [], []
-    for year in YEARS:
-        f = load_built_rasters_ops[year]
-        data, transform = f(bounds)
-        rasters.append(data)
-        transforms.append(transform)
-
-    return reduce_rasters(rasters, transforms)
+    return load_built_raster(bounds)
 
 
 @dg.graph_asset(
