@@ -17,7 +17,11 @@ from jat_slides.defs.assets.radial_population import (
     radial_population_factory,
     summarize_radial_change,
 )
-from jat_slides.defs.assets.slides import slides_mun, slides_zone
+from jat_slides.defs.assets.slides import (
+    slides_mun,
+    slides_zone_1990_2020,
+    slides_zone_2000_2020,
+)
 from jat_slides.defs.managers import PathIOManager, PlotFigIOManager
 from jat_slides.defs.resources import PathResource
 
@@ -46,9 +50,13 @@ def test_calculation(year: int, totals: list[int]) -> None:
     prepared, radii, xmax = prepare_radial_change(
         radial_frame().iloc[::-1], bracket_frame(), ZONE, year
     )
-    result = summarize_radial_change(prepared)
+    result = summarize_radial_change(prepared, year)
     np.testing.assert_equal(result.remoteness_cat.tolist(), list(REMOTENESS_LABELS))
     np.testing.assert_allclose(result.pop_diff, totals)
+    expected_pct = (
+        [100 / 3, 200, 150, -200 / 3] if year == 1990 else [100, 200, 25, -50]
+    )
+    np.testing.assert_allclose(result.pop_diff_pct, expected_pct)
     np.testing.assert_equal(xmax, 3)
     np.testing.assert_allclose(radii, [1, 2, 4])
     np.testing.assert_equal(
@@ -78,7 +86,7 @@ def test_empty_categories() -> None:
         radial_frame().iloc[:2], bracket_frame(), ZONE, 1990
     )
     np.testing.assert_allclose(
-        summarize_radial_change(prepared).pop_diff, [10, 0, 0, 0]
+        summarize_radial_change(prepared, 1990).pop_diff, [10, 0, 0, 0]
     )
 
 
@@ -150,6 +158,10 @@ def test_materialization(tmp_path: Path, year: int) -> None:
     def consumer(table: pd.DataFrame, picture: Path) -> None:
         expected = [10, 20, 15, -10] if year == 1990 else [20, 20, 5, -5]
         np.testing.assert_allclose(table.pop_diff, expected)
+        expected_pct = (
+            [100 / 3, 200, 150, -200 / 3] if year == 1990 else [100, 200, 25, -50]
+        )
+        np.testing.assert_allclose(table.pop_diff_pct, expected_pct)
         np.testing.assert_equal(
             picture, tmp_path / "out" / "plot_zone" / name / f"{ZONE}.jpg"
         )
@@ -175,7 +187,10 @@ def test_definitions() -> None:
     defs = definitions()
     dg.Definitions.validate_loadable(defs)
     graph = defs.resolve_asset_graph()
-    for year in (1990, 2000):
+    for year, slides_zone in [
+        (1990, slides_zone_1990_2020),
+        (2000, slides_zone_2000_2020),
+    ]:
         name = f"radial_population_change_{year}_2020"
         for prefix, manager in [
             ("plot_zone", "plot_manager"),
@@ -194,9 +209,7 @@ def test_definitions() -> None:
                 manager,
             )
         np.testing.assert_equal(
-            slides_zone.op.input_def_named(
-                f"radial_{year}_figure_path"
-            ).input_manager_key,
+            slides_zone.op.input_def_named("radial_figure_path").input_manager_key,
             "path_manager",
         )
 
@@ -239,3 +252,13 @@ def test_periods_share_axes_and_layout(scenario: str) -> None:
     finally:
         for figure in figures:
             plt.close(figure)
+
+
+@pytest.mark.parametrize("year", [1990, 2000])
+def test_zero_baseline_percentage(year: int) -> None:
+    radial = radial_frame().iloc[:3].copy()
+    radial[f"ring_pop_{year}"] = 0
+    prepared, _, _ = prepare_radial_change(radial, bracket_frame(), ZONE, year)
+    summary = summarize_radial_change(prepared, year)
+    np.testing.assert_allclose(summary.pop_diff, [40, 30, 0, 0])
+    np.testing.assert_equal(summary.pop_diff_pct.isna().all(), desired=True)

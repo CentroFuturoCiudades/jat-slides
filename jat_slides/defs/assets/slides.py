@@ -359,7 +359,7 @@ def add_radial_population_slide(
 
     table_placeholder = find_shape(slide.shapes, prefix="Table", kind="table")
     table_left, table_width = table_placeholder.left, table_placeholder.width
-    table_frame = table_placeholder.insert_table(rows=5, cols=2)
+    table_frame = table_placeholder.insert_table(rows=5, cols=3)
     table_height = table_frame.height
     table_frame.left = table_left
     table_frame.width = table_width
@@ -367,11 +367,20 @@ def add_radial_population_slide(
     table_frame.top = top + (height - table_height) // 2
     table = table_frame.table
     table_frame.element.xpath(".//a:tableStyleId")[0].text = TABLE_STYLE_ID
-    rows = [("Zona", "Cambio de población")]
+    table.columns[0].width = round(table_width * 0.32)
+    table.columns[1].width = round(table_width * 0.38)
+    table.columns[2].width = (
+        table_width - table.columns[0].width - table.columns[1].width
+    )
+    rows = [("Zona", "Cambio de\npoblación", "Cambio\n(%)")]
     rows.extend(
-        (str(category), f"{change:,.0f}")
-        for category, change in comparison.table[
-            ["remoteness_cat", "pop_diff"]
+        (
+            str(category),
+            f"{change:,.0f}",
+            "N/D" if pd.isna(percent) else f"{percent:,.1f}%",
+        )
+        for category, change, percent in comparison.table[
+            ["remoteness_cat", "pop_diff", "pop_diff_pct"]
         ].itertuples(index=False, name=None)
     )
     for row_index, row in enumerate(rows):
@@ -380,10 +389,17 @@ def add_radial_population_slide(
             cell.text = text
             for paragraph in cell.text_frame.paragraphs:
                 for run in paragraph.runs:
-                    run.font.size = Pt(14)
+                    run.font.size = Pt(12 if row_index == 0 else 14)
                     if row_index == 0 or column_index == 0:
                         run.font.bold = True
                         run.font.color.rgb = RGB_BLUE
+
+    if comparison.table["pop_diff_pct"].isna().any():
+        narrative.left, narrative.width = table_left, table_width
+        narrative.top = table_frame.top + table_frame.height
+        narrative.height = Cm(1)
+        narrative.text = f"N/D: sin población en {comparison.start_year}."
+        narrative.text_frame.paragraphs[0].runs[0].font.size = Pt(12)
 
 
 def generate_single_slide(  # noqa: PLR0913
@@ -462,44 +478,39 @@ def slides_factory(
     level: str,
     *,
     partitions_def: dg.PartitionsDefinition,
+    start_year: int = 2000,
 ) -> dg.AssetsDefinition:
-    historical_ins = {}
-    if level == "zone":
-        historical_ins = {
-            "lost_pop_after_1990": dg.AssetIn(
-                key=["stats_zone", "lost_pop_after_1990"]
-            ),
-            "built_after_1990": dg.AssetIn(key=["stats_zone", "built_after_1990"]),
-            "pg_1990_figure_path": dg.AssetIn(
-                key=["plot_zone", "population_grid_1990_2020"],
-                input_manager_key="path_manager",
-            ),
-        }
-
     radial_ins = {}
     if level == "zone":
-        for year in (2000, 1990):
-            name = f"radial_population_change_{year}_2020"
-            radial_ins[f"radial_{year}_figure_path"] = dg.AssetIn(
+        name = f"radial_population_change_{start_year}_2020"
+        radial_ins = {
+            "radial_figure_path": dg.AssetIn(
                 key=["plot_zone", name], input_manager_key="path_manager"
-            )
-            radial_ins[f"radial_{year}_table"] = dg.AssetIn(key=["stats_zone", name])
+            ),
+            "radial_table": dg.AssetIn(key=["stats_zone", name]),
+        }
 
     @dg.asset(
-        name=f"slides_{level}",
+        name=f"slides_zone_{start_year}_2020" if level == "zone" else f"slides_{level}",
         ins={
-            **historical_ins,
             **radial_ins,
-            "lost_pop_after_2000": dg.AssetIn(
-                key=[f"stats_{level}", "lost_pop_after_2000"],
+            "lost_pop_fraction": dg.AssetIn(
+                key=[f"stats_{level}", f"lost_pop_after_{start_year}"],
             ),
-            "built_after_2000": dg.AssetIn(key=[f"stats_{level}", "built_after_2000"]),
+            "built_fraction": dg.AssetIn(
+                key=[f"stats_{level}", f"built_after_{start_year}"]
+            ),
             "pop_df": dg.AssetIn(key=[f"stats_{level}", "population"]),
             "total_jobs": dg.AssetIn(key=[f"stats_{level}", "total_jobs"]),
             "built_df": dg.AssetIn(key=[f"stats_{level}", "built_area"]),
             "built_urban_df": dg.AssetIn(key=[f"stats_{level}", "built_urban_area"]),
             "pg_figure_path": dg.AssetIn(
-                key=[f"plot_{level}", "population_grid"],
+                key=[
+                    f"plot_{level}",
+                    "population_grid_1990_2020"
+                    if start_year == 1990
+                    else "population_grid",
+                ],
                 input_manager_key="path_manager",
             ),
             "built_figure_path": dg.AssetIn(
@@ -522,8 +533,8 @@ def slides_factory(
     )
     def _asset(  # noqa: PLR0913, PLR0917
         context: dg.AssetExecutionContext,
-        lost_pop_after_2000: float,
-        built_after_2000: float,
+        lost_pop_fraction: float,
+        built_fraction: float,
         total_jobs: float,
         pop_df: pd.DataFrame,
         built_df: pd.DataFrame,
@@ -532,31 +543,16 @@ def slides_factory(
         built_figure_path: Path,
         income_figure_path: Path | None,
         jobs_figure_path: Path,
-        **historical_inputs: float | Path | pd.DataFrame,
+        **radial_inputs: Path | pd.DataFrame,
     ) -> PresentationType:
         config_resource = getattr(context.resources, f"{level}_config_resource")
-
-        comparisons = [
-            Comparison(2000, lost_pop_after_2000, built_after_2000, pg_figure_path)
-        ]
-        if level == "zone":
-            comparisons.append(
-                Comparison(
-                    1990,
-                    cast("float", historical_inputs["lost_pop_after_1990"]),
-                    cast("float", historical_inputs["built_after_1990"]),
-                    cast("Path", historical_inputs["pg_1990_figure_path"]),
-                )
-            )
-
         radial_comparisons = (
-            tuple(
+            (
                 RadialComparison(
-                    year,
-                    cast("Path", historical_inputs[f"radial_{year}_figure_path"]),
-                    cast("pd.DataFrame", historical_inputs[f"radial_{year}_table"]),
-                )
-                for year in (2000, 1990)
+                    start_year,
+                    cast("Path", radial_inputs["radial_figure_path"]),
+                    cast("pd.DataFrame", radial_inputs["radial_table"]),
+                ),
             )
             if level == "zone"
             else ()
@@ -564,7 +560,11 @@ def slides_factory(
 
         return generate_single_slide(
             name=config_resource.names[context.partition_key],
-            comparisons=tuple(comparisons),
+            comparisons=(
+                Comparison(
+                    start_year, lost_pop_fraction, built_fraction, pg_figure_path
+                ),
+            ),
             total_jobs=total_jobs,
             pop_df=pop_df,
             built_df=built_df,
@@ -578,5 +578,10 @@ def slides_factory(
     return _asset
 
 
-slides_zone = slides_factory("zone", partitions_def=zone_partitions)
+slides_zone_1990_2020 = slides_factory(
+    "zone", partitions_def=zone_partitions, start_year=1990
+)
+slides_zone_2000_2020 = slides_factory(
+    "zone", partitions_def=zone_partitions, start_year=2000
+)
 slides_mun = slides_factory("mun", partitions_def=mun_partitions)

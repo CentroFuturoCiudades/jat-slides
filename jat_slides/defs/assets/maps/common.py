@@ -226,6 +226,9 @@ def generate_figure(  # noqa: PLR0913
             postgis_resource=postgis_resource,
         )
 
+    # The configured bounds frame a 16:9 slide. Geographic layers otherwise
+    # shrink the axes to impose their own aspect ratio, leaving white borders.
+    ax.set_aspect("auto")
     return fig, ax
 
 
@@ -413,7 +416,7 @@ def add_overlay(overlay_dir: Path, *, ax: Axes, config: dict | None) -> None:
                 ]
 
             geom = gpd.read_file(fpath).to_crs("EPSG:4326")["geometry"]
-            geom.plot(ax=ax, **subconfig)
+            geom.plot(ax=ax, aspect=None, autolim=False, **subconfig)
 
 
 def add_remoteness_circles(circles: gpd.GeoDataFrame | None, *, ax: Axes) -> None:

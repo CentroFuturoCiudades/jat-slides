@@ -60,10 +60,16 @@ def prepare_radial_change(
     return values, radii, xmax
 
 
-def summarize_radial_change(radial: pd.DataFrame) -> pd.DataFrame:
-    return (
-        radial.groupby("remoteness_cat", observed=False)["pop_diff"].sum().reset_index()
+def summarize_radial_change(radial: pd.DataFrame, start_year: int) -> pd.DataFrame:
+    baseline_column = f"ring_pop_{start_year}"
+    summary = (
+        radial.groupby("remoteness_cat", observed=False)[["pop_diff", baseline_column]]
+        .sum()
+        .reset_index()
     )
+    baseline = summary[baseline_column].where(summary[baseline_column] != 0)
+    summary["pop_diff_pct"] = 100 * summary["pop_diff"] / baseline
+    return summary.drop(columns=baseline_column)
 
 
 def plot_radial_change(radial: pd.DataFrame, radii: np.ndarray, xmax: float) -> Figure:
@@ -134,7 +140,7 @@ def radial_population_factory(start_year: int) -> dg.AssetsDefinition:
             radial, brackets, zone, start_year
         )
         return plot_radial_change(prepared, radii, xmax), summarize_radial_change(
-            prepared
+            prepared, start_year
         )
 
     return radial_population
