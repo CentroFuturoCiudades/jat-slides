@@ -1,6 +1,6 @@
 outs:
-- md5: 1d6c8c49c03415689dc2b17ba4cd405f.dir
-  size: 1210
+- md5: 0fb0f962b525d9c82e16a2768ea60dfd.dir
+  size: 1166
   nfiles: 69
   hash: md5
   path: total_jobs
