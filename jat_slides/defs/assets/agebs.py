@@ -20,17 +20,22 @@ CENSUS_QUERIES = {
         WHERE cve_met = %(zone)s
     """,
     2010: """
-        SELECT pobtot, geometry FROM census_2010_ageb
+        SELECT pobtot, geometry
+        FROM geo_unit_2010_ageb
+        INNER JOIN census_2010_ageb USING (cvegeo)
+        INNER JOIN geometry_2010_ageb USING (cvegeo)
         WHERE cve_met = %(zone)s
     """,
     2020: """
-        SELECT census_2020_ageb.pobtot, census_2020_ageb.geometry
-        FROM census_2020_ageb
-        INNER JOIN census_2020_loc
-            ON census_2020_ageb.cve_loc = census_2020_loc.cvegeo
-        INNER JOIN census_2020_mun
-            ON census_2020_loc.cve_mun = census_2020_mun.cvegeo
-        WHERE census_2020_mun.cve_met = %(zone)s
+        SELECT census_2020_ageb.pobtot, geometry_2020_ageb.geometry
+        FROM geo_unit_2020_ageb
+        INNER JOIN census_2020_ageb USING (cvegeo)
+        INNER JOIN geometry_2020_ageb USING (cvegeo)
+        INNER JOIN geo_unit_2020_loc
+            ON geo_unit_2020_ageb.cve_loc = geo_unit_2020_loc.cvegeo
+        INNER JOIN geo_unit_2020_mun
+            ON geo_unit_2020_loc.cve_mun = geo_unit_2020_mun.cvegeo
+        WHERE cve_met = %(zone)s
     """,
 }
 
